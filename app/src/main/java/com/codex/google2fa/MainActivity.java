@@ -115,13 +115,30 @@ public class MainActivity extends android.app.Activity {
 
     private void addAccount(String name, String secret) {
         String clean = normalize(secret);
-        if (name.trim().isEmpty() || clean.isEmpty() || decodeBase32(clean).length < 10) {
+        if (name.trim().isEmpty() || !isValidSecret(clean)) {
             Toast.makeText(this, "Enter a valid name and secret key", Toast.LENGTH_SHORT).show();
             return;
         }
-        accounts.add(new Account(UUID.randomUUID().toString(), name.trim(), clean));
-        saveAccounts();
-        renderAccounts();
+        try {
+            accounts.add(new Account(UUID.randomUUID().toString(), name.trim(), clean));
+            saveAccounts();
+            renderAccounts();
+        } catch (RuntimeException exception) {
+            // Keep an invalid account from leaving the activity in a broken state.
+            if (!accounts.isEmpty()) accounts.remove(accounts.size() - 1);
+            saveAccounts();
+            Toast.makeText(this, "Unable to add this account", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean isValidSecret(String secret) {
+        try {
+            if (secret.isEmpty() || decodeBase32(secret).length < 10) return false;
+            totp(secret, System.currentTimeMillis() / 1000L);
+            return true;
+        } catch (GeneralSecurityException | RuntimeException exception) {
+            return false;
+        }
     }
 
     private void renderAccounts() {
@@ -181,7 +198,7 @@ public class MainActivity extends android.app.Activity {
             ProgressBar progress = findByTag(accountList, "progress-" + account.id, ProgressBar.class);
             if (code != null) {
                 try { code.setText(totp(account.secret, now)); }
-                catch (GeneralSecurityException exception) { code.setText("------"); }
+                catch (GeneralSecurityException | RuntimeException exception) { code.setText("------"); }
             }
             if (progress != null) progress.setProgress(remaining);
         }
@@ -230,6 +247,7 @@ public class MainActivity extends android.app.Activity {
         mac.init(new SecretKeySpec(key, "HmacSHA1"));
         byte[] hash = mac.doFinal(counter.array());
         int offset = hash[hash.length - 1] & 0x0f;
+        if (offset + 4 > hash.length) throw new GeneralSecurityException("Invalid HMAC result");
         int binary = ((hash[offset] & 0x7f) << 24) | ((hash[offset + 1] & 0xff) << 16) | ((hash[offset + 2] & 0xff) << 8) | (hash[offset + 3] & 0xff);
         return String.format(Locale.US, "%06d", binary % 1_000_000);
     }
