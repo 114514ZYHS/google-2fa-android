@@ -4,3 +4,10 @@ app/build/
 local.properties
 *.iml
 .idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 测试编译产物
+tools/algorithm-tests/*.class
+.build-tools-linux/
