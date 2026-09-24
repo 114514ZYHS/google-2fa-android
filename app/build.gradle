@@ -3,12 +3,12 @@ plugins {
 }
 
 android {
-    namespace 'com.codex.google2fa'
+    namespace 'com.codex.twofa'
     compileSdk 35
     buildToolsVersion '35.0.0'
 
     defaultConfig {
-        applicationId 'com.codex.google2fa'
+        applicationId 'com.codex.twofa'
         minSdk 23
         targetSdk 35
         versionCode 2

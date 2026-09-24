@@ -1,4 +1,4 @@
-package com.codex.google2fa;
+package com.codex.twofa;
 
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -89,7 +89,7 @@ public class MainActivity extends android.app.Activity {
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("Google 2FA", 22, color("app_ink"), Typeface.BOLD);
+        TextView title = text("2FA", 22, color("app_ink"), Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(56), 1));
         timerText = text("30s", 16, color("app_muted"), Typeface.BOLD);
         timerText.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
@@ -160,7 +160,7 @@ public class MainActivity extends android.app.Activity {
         form.addView(secret);
         new AlertDialog.Builder(this)
             .setTitle("添加账户")
-            .setMessage("可直接粘贴 Google Authenticator 的 otpauth:// 链接，会自动解析发行方、算法、位数与周期。")
+            .setMessage("可直接粘贴验证器的 otpauth:// 链接，会自动解析发行方、算法、位数与周期。")
             .setView(form)
             .setNegativeButton("取消", null)
             .setPositiveButton("添加", (dialog, which) -> addAccount(name.getText().toString(), secret.getText().toString()))
@@ -587,7 +587,7 @@ public class MainActivity extends android.app.Activity {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/plain");
-        intent.putExtra(Intent.EXTRA_TITLE, "google-2fa-backup.txt");
+        intent.putExtra(Intent.EXTRA_TITLE, "2fa-backup.txt");
         intent.putExtra("payload", payload);
         try {
             startActivityForResult(intent, REQUEST_EXPORT_FILE);

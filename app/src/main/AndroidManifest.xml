@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="false"
-        android:label="Google 2FA"
+        android:label="2FA"
         android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"

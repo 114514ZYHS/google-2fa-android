@@ -1,4 +1,4 @@
-# Google 2FA Android
+# 2FA Android
 
 一个纯本地、零第三方依赖的 Android TOTP 验证器（动态口令），支持多账户管理与导入导出。
 
@@ -23,7 +23,7 @@
 
 **导入与导出**
 
-- 直接粘贴 Google Authenticator / 其他验证器的 **`otpauth://` 链接** 即可添加，
+- 直接粘贴任意验证器的 **`otpauth://` 链接** 即可添加，
   自动解析发行方、账户名、算法、位数与周期
 - 批量导入：支持从**剪贴板**粘贴，或从**文件**读取
 - 导出备份：可**复制到剪贴板**或**保存为文件**，内容为逐行 `otpauth://` 链接
@@ -146,7 +146,7 @@ bash tools/algorithm-tests/run.sh
 ## 目录结构
 
 ```
-app/src/main/java/com/codex/google2fa/MainActivity.java   全部界面与 TOTP 逻辑
+app/src/main/java/com/codex/twofa/MainActivity.java       全部界面与 TOTP 逻辑
 app/src/main/res/values/colors.xml                        配色
 app/src/main/res/values/styles.xml                        主题
 build-apk.ps1                                             Windows 一键构建脚本
@@ -159,6 +159,7 @@ tools/algorithm-tests/                                    算法与解析逻辑�
 
 ### 1.1
 
+- 去除 "Google" 品牌标识：应用名改为 `2FA`，包名由 `com.codex.google2fa` 改为 `com.codex.twofa`
 - 支持 SHA1 / SHA256 / SHA512 与 6/8 位验证码、自定义周期
 - 支持解析 `otpauth://` 链接，批量导入（剪贴板 / 文件）
 - 支持导出备份到剪贴板或文件

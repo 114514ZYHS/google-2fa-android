@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Google2FA"
+rootProject.name = "2FA"
 include ':app'
