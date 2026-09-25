@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        API 27+ 才支持浅色导航栏图标。
+        低版本设备不引入该属性，避免解析未知 framework 属性导致启动崩溃。
+    -->
+    <style name="AppTheme" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/app_primary</item>
+        <item name="colorOnPrimary">@color/app_on_primary</item>
+        <item name="colorPrimaryContainer">@color/app_primary_light</item>
+        <item name="colorOnPrimaryContainer">@color/app_primary_dark</item>
+        <item name="colorSurface">@color/app_card</item>
+        <item name="colorOnSurface">@color/app_ink</item>
+        <item name="colorSurfaceVariant">@color/app_surface</item>
+        <item name="colorOutline">@color/app_line</item>
+        <item name="colorError">@color/app_danger</item>
+
+        <item name="android:colorBackground">@color/app_surface</item>
+        <item name="android:statusBarColor">@color/app_surface</item>
+        <item name="android:navigationBarColor">@color/app_surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:textColorPrimary">@color/app_ink</item>
+        <item name="android:textColorSecondary">@color/app_muted</item>
+        <item name="android:textColorHint">@color/app_hint</item>
+    </style>
+</resources>

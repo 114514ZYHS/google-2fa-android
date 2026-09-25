@@ -38,6 +38,8 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -109,15 +111,43 @@ public class MainActivity extends AppCompatActivity {
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        bindViews();
-        loadAccounts();
-        renderAccounts();
-        selectInitial();
+        try {
+            setContentView(R.layout.activity_main);
+            bindViews();
+            loadAccounts();
+            renderAccounts();
+            selectInitial();
+        } catch (Throwable throwable) {
+            // 任何初始化异常都不允许直接闪退：把原因显示出来，便于定位。
+            showFatal(throwable);
+        }
     }
 
-    @Override protected void onResume() { super.onResume(); handler.post(ticker); }
+    @Override protected void onResume() {
+        super.onResume();
+        handler.removeCallbacks(ticker);
+        handler.post(ticker);
+    }
+
     @Override protected void onPause() { handler.removeCallbacks(ticker); super.onPause(); }
+
+    /** 用最朴素的方式把异常展示出来，避免用户只看到「已停止运行」。 */
+    private void showFatal(Throwable throwable) {
+        StringWriter writer = new StringWriter();
+        throwable.printStackTrace(new PrintWriter(writer));
+        android.util.Log.e("2FA", "初始化失败", throwable);
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        TextView view = new TextView(this);
+        view.setText("启动失败：\n\n" + writer.toString());
+        view.setTextSize(12);
+        view.setTypeface(Typeface.MONOSPACE);
+        view.setPadding(32, 32, 32, 32);
+        view.setTextIsSelectable(true);
+        scroll.addView(view);
+        setContentView(scroll);
+    }
+
 
     // ---------------------------------------------------------------- 视图绑定
 
@@ -220,11 +250,12 @@ public class MainActivity extends AppCompatActivity {
         if (account == null) {
             quickCode.setText("--- ---");
             quickName.setText(getString(R.string.quick_no_account));
-            quickProgress.setProgress(0);
+            safeProgress(quickProgress, 0, 1);
             return;
         }
         long now = System.currentTimeMillis() / 1000L;
-        int remaining = (int) (account.period - (now % account.period));
+        int period = clampPeriod(account.period);
+        int remaining = (int) (period - (now % period));
         quickName.setText(account.display());
 
         String value = computeCode(account, now);
@@ -235,10 +266,24 @@ public class MainActivity extends AppCompatActivity {
             quickCode.setText(groupCode(value));
             quickCode.setTextColor(remaining <= 5 ? color("app_warning") : color("app_ink"));
         }
-        quickProgress.setMax(account.period);
-        quickProgress.setProgress(remaining);
+        safeProgress(quickProgress, remaining, period);
         quickProgress.setIndicatorColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
     }
+
+    /**
+     * 安全设置进度条。ProgressIndicator 在 max 为 0 或 progress 越界时会抛异常，
+     * 因此统一在这里做边界收敛，避免任何情况下把 Activity 打崩。
+     */
+    private void safeProgress(LinearProgressIndicator indicator, int progress, int max) {
+        if (indicator == null) return;
+        int safeMax = Math.max(1, max);
+        int safeProgress = Math.max(0, Math.min(progress, safeMax));
+        try {
+            indicator.setMax(safeMax);
+            indicator.setProgress(safeProgress);
+        } catch (RuntimeException ignored) { }
+    }
+
 
     /** 计算验证码，失败返回 null。位数不限，按实际位数生成。 */
     private String computeCode(Account account, long seconds) {
@@ -973,7 +1018,7 @@ public class MainActivity extends AppCompatActivity {
 
             void bind(Account account) {
                 name.setText(account.name);
-                if (account.issuer.isEmpty()) {
+                if (account.issuer == null || account.issuer.isEmpty()) {
                     meta.setText(account.meta());
                 } else {
                     meta.setText(account.issuer + " · " + account.meta());
@@ -981,7 +1026,8 @@ public class MainActivity extends AppCompatActivity {
                 pin.setVisibility(account.pinned ? View.VISIBLE : View.GONE);
 
                 long now = System.currentTimeMillis() / 1000L;
-                int remaining = (int) (account.period - (now % account.period));
+                int period = clampPeriod(account.period);
+                int remaining = (int) (period - (now % period));
                 String value = computeCode(account, now);
                 if (value == null) {
                     code.setText(maskFor(account.digits));
@@ -991,18 +1037,13 @@ public class MainActivity extends AppCompatActivity {
                     code.setTextColor(remaining <= 5 ? color("app_warning") : color("app_ink"));
                 }
 
-                progress.setMax(account.period);
-                progress.setProgress(remaining);
-                progress.setIndicatorColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
+                safeProgress(progress, remaining, period);
 
                 // 选中态：描边加粗，让当前账户一目了然
                 boolean isSelected = account.id.equals(highlightedId);
                 itemView.setSelected(isSelected);
 
-                itemView.setOnClickListener(v -> {
-                    select(account);
-                    notifyDataSetChanged();
-                });
+                itemView.setOnClickListener(v -> select(account));
                 copy.setOnClickListener(v -> copyCode(account));
                 more.setOnClickListener(v -> showAccountMenu(account));
                 itemView.setOnLongClickListener(v -> { showAccountMenu(account); return true; });

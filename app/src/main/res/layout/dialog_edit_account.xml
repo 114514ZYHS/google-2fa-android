@@ -87,32 +87,26 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/algSha1"
-                    style="@style/Widget.App.Button.Tonal"
+                    style="@style/Widget.App.ToggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
                     android:text="@string/alg_sha1" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/algSha256"
-                    style="@style/Widget.App.Button.Tonal"
+                    style="@style/Widget.App.ToggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
                     android:text="@string/alg_sha256" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/algSha512"
-                    style="@style/Widget.App.Button.Tonal"
+                    style="@style/Widget.App.ToggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
                     android:text="@string/alg_sha512" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
@@ -127,42 +121,34 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/dig6"
-                    style="@style/Widget.App.Button.Tonal"
+                    style="@style/Widget.App.ToggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
                     android:text="@string/digits_6" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/dig8"
-                    style="@style/Widget.App.Button.Tonal"
+                    style="@style/Widget.App.ToggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
                     android:text="@string/digits_8" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/dig7"
-                    style="@style/Widget.App.Button.Tonal"
+                    style="@style/Widget.App.ToggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
                     android:text="@string/digits_7" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/digCustom"
-                    style="@style/Widget.App.Button.Tonal"
+                    style="@style/Widget.App.ToggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="38dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
                     android:text="@string/digits_custom" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 

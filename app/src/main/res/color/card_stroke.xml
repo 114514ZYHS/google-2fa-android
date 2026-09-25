@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 卡片描边：选中时主色，未选中时浅灰。必须声明默认态，否则取色会抛异常。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/app_primary" android:state_selected="true" />
+    <item android:color="@color/app_primary" android:state_checked="true" />
+    <item android:color="@color/app_line" />
+</selector>
