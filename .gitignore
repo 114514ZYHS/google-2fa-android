@@ -1,13 +1,20 @@
-.gradle/
-.build-tools/
-app/build/
-local.properties
+# 构建产物
 *.iml
+.gradle/
+build/
+local.properties
 .idea/
+.DS_Store
 captures/
 .externalNativeBuild/
 .cxx/
 
-# 测试编译产物
-tools/algorithm-tests/*.class
-.build-tools-linux/
+# Robolectric 离线依赖（体积 150MB+，不入库）
+android-all-instrumented-*.jar
+
+# Java 编译中间产物
+*.class
+
+# Python 缓存
+__pycache__/
+*.pyc

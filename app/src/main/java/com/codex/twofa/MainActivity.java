@@ -102,8 +102,12 @@ public class MainActivity extends AppCompatActivity {
     private String query = "";
     private String selectedId = null;
 
+    /** 只有初始化完全成功后才启动秒级刷新，避免在异常状态下反复触发。 */
+    private boolean ready = false;
+
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
+            if (!ready) return;
             refreshCodes();
             handler.postDelayed(this, 1000);
         }
@@ -117,8 +121,10 @@ public class MainActivity extends AppCompatActivity {
             loadAccounts();
             renderAccounts();
             selectInitial();
+            ready = true;
         } catch (Throwable throwable) {
             // 任何初始化异常都不允许直接闪退：把原因显示出来，便于定位。
+            ready = false;
             showFatal(throwable);
         }
     }
@@ -126,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
     @Override protected void onResume() {
         super.onResume();
         handler.removeCallbacks(ticker);
-        handler.post(ticker);
+        if (ready) handler.post(ticker);
     }
 
     @Override protected void onPause() { handler.removeCallbacks(ticker); super.onPause(); }
@@ -234,18 +240,34 @@ public class MainActivity extends AppCompatActivity {
     // ---------------------------------------------------------------- 定时刷新
 
     private void refreshCodes() {
+        // 定时器可能在视图尚未绑定完成时就被触发（或在初始化异常后），
+        // 这里必须做完整判空，否则会抛 NullPointerException 导致闪退。
+        if (adapter == null) return;
+
         if (!accounts.isEmpty()) {
             long now = System.currentTimeMillis() / 1000L;
-            int remaining = (int) (30 - (now % 30));
-            globalTimer.setText(remaining + "s");
-            globalTimer.setBackgroundResource(R.drawable.bg_timer_pill);
-            globalTimer.setTextColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
+            int period = currentPeriod();
+            int remaining = (int) (period - (now % period));
+            if (globalTimer != null) {
+                globalTimer.setText(remaining + "s");
+                globalTimer.setBackgroundResource(R.drawable.bg_timer_pill);
+                globalTimer.setTextColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
+            }
         }
         adapter.notifyDataSetChanged();
         updateQuickPanel();
     }
 
+    /** 当前选中账户的周期，没有账户时回退到 30 秒。 */
+    private int currentPeriod() {
+        Account account = selectedAccount();
+        return account == null ? 30 : account.period;
+    }
+
     private void updateQuickPanel() {
+        // 视图尚未就绪时直接返回，避免空指针。
+        if (quickCode == null || quickName == null || quickProgress == null) return;
+
         Account account = selectedAccount();
         if (account == null) {
             quickCode.setText("--- ---");
@@ -294,8 +316,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /** 把验证码按 3~4 位分组，便于人眼核对；位数不是 6/8 时原样显示。 */
+    /** 把验证码按 3~4 位分组，便于人眼核对；组不满时按 4 位切分，过短则原样显示。 */
     private String groupCode(String code) {
+        if (code == null || code.isEmpty()) return code;
         if (code.length() == 6) return code.substring(0, 3) + " " + code.substring(3);
         if (code.length() == 8) return code.substring(0, 4) + " " + code.substring(4);
         if (code.length() >= 4) {
@@ -309,11 +332,13 @@ public class MainActivity extends AppCompatActivity {
         return code;
     }
 
+    /** 计算不出验证码时显示的占位掩码，长度与位数一致。 */
     private String maskFor(int digits) {
+        int safe = Math.max(1, digits);
         StringBuilder builder = new StringBuilder();
-        int half = Math.max(1, digits / 2);
-        for (int i = 0; i < digits; i++) {
-            if (i == half && digits >= 4) builder.append(' ');
+        int half = Math.max(1, safe / 2);
+        for (int i = 0; i < safe; i++) {
+            if (i == half && safe >= 4) builder.append(' ');
             builder.append('-');
         }
         return builder.toString();

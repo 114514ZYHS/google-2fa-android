@@ -11,8 +11,8 @@ android {
         applicationId 'com.codex.twofa'
         minSdk 24
         targetSdk 35
-        versionCode 4
-        versionName '1.3'
+        versionCode 5
+        versionName '1.4'
     }
 
     buildFeatures {
@@ -23,6 +23,25 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+            all {
+                // 沙箱无法直连 repo1.maven.org，改用本地离线仓库
+                systemProperty 'robolectric.offline', 'true'
+                systemProperty 'robolectric.dependency.repo.url', 'file:///opt/robolectric-maven'
+                systemProperty 'robolectric.dependency.repo.id', 'local-offline'
+                systemProperty 'robolectric.logging', 'stdout'
+                testLogging {
+                    events 'passed', 'failed', 'skipped'
+                    showStandardStreams = false
+                    exceptionFormat = 'full'
+                }
+            }
+        }
+    }
 }
 
 dependencies {
@@ -30,4 +49,10 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.core:core:1.13.1'
+
+    // 在 JVM 中真实启动 Activity，用于验证「点进去闪退」类问题
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.13'
+    testImplementation 'androidx.test:core:1.6.1'
+    testImplementation 'androidx.test.ext:junit:1.2.1'
 }

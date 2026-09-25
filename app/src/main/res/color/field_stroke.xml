@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- 输入框描边：聚焦时主色，未聚焦时浅灰 -->
-    <selector xmlns:android="http://schemas.android.com/apk/res/android">
-        <item android:color="@color/app_primary" android:state_focused="true" />
-        <item android:color="@color/app_line" android:state_focused="false" />
-    </selector>
-</resources>
+<!--
+    输入框描边色：聚焦时用主色，其余情况用浅灰。
+    必须保留最后一条不带 state 的默认项，否则在控件状态不匹配任何条件时
+    TextInputLayout 取色会抛 Resources$NotFoundException，导致启动即闪退。
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/app_primary" android:state_focused="true" />
+    <item android:color="@color/app_primary" android:state_hovered="true" />
+    <item android:color="@color/app_line" />
+</selector>
