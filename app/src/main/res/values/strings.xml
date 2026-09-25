@@ -28,6 +28,11 @@
     <!-- 快速区 -->
     <string name="quick_title">快速验证码</string>
     <string name="quick_no_account">未选择</string>
+    <string name="quick_secret_hint">粘贴或输入密钥，立即出码</string>
+    <string name="quick_placeholder">--- ---</string>
+    <string name="quick_empty">输入密钥即可出码</string>
+    <string name="quick_copied">已复制验证码</string>
+    <string name="quick_nothing_to_copy">请先输入密钥</string>
 
     <!-- 新增/编辑对话框 -->
     <string name="dialog_add_title">添加账户</string>

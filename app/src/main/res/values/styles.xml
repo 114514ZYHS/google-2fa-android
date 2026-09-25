@@ -84,6 +84,13 @@
         <item name="hintTextColor">@color/app_muted</item>
     </style>
 
+    <!-- 快速验证区的紧凑输入框：去掉浮动标签占用的额外高度 -->
+    <style name="Widget.App.TextField.Quick" parent="Widget.App.TextField">
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+    </style>
+
+
     <!-- 对话框 -->
     <style name="AppDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="dialogCornerRadius">@dimen/dialog_radius</item>

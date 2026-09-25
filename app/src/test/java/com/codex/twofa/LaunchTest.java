@@ -76,7 +76,9 @@ public class LaunchTest {
                 R.id.btnImport,
                 R.id.btnExport,
                 R.id.quickCode,
-                R.id.quickName,
+                R.id.quickMeta,
+                R.id.quickSecret,
+                R.id.quickWrap,
                 R.id.emptyState,
                 R.id.globalTimer,
         };

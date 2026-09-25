@@ -96,11 +96,18 @@ public class MainActivity extends AppCompatActivity {
     private TextInputEditText searchInput;
     private TextView globalTimer;
     private TextView quickCode;
-    private TextView quickName;
+    private TextView quickMeta;
+    private TextInputLayout quickWrap;
+    private TextInputEditText quickSecret;
     private LinearProgressIndicator quickProgress;
 
     private String query = "";
     private String selectedId = null;
+
+    /** 快速验证区使用的参数，与输入框内容配合，独立于账户列表。 */
+    private String quickAlgorithm = "SHA1";
+    private int quickDigits = 6;
+    private int quickPeriod = 30;
 
     /** 只有初始化完全成功后才启动秒级刷新，避免在异常状态下反复触发。 */
     private boolean ready = false;
@@ -164,7 +171,9 @@ public class MainActivity extends AppCompatActivity {
         searchInput = findViewById(R.id.searchInput);
         globalTimer = findViewById(R.id.globalTimer);
         quickCode = findViewById(R.id.quickCode);
-        quickName = findViewById(R.id.quickName);
+        quickMeta = findViewById(R.id.quickMeta);
+        quickWrap = findViewById(R.id.quickWrap);
+        quickSecret = findViewById(R.id.quickSecret);
         quickProgress = findViewById(R.id.quickProgress);
 
         adapter = new AccountAdapter();
@@ -184,10 +193,15 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btnImport).setOnClickListener(v -> showImportDialog());
         findViewById(R.id.btnExport).setOnClickListener(v -> showExportDialog());
         findViewById(R.id.btnSort).setOnClickListener(v -> showSortDialog());
-        findViewById(R.id.btnQuickCopy).setOnClickListener(v -> {
-            Account account = selectedAccount();
-            if (account != null) copyCode(account);
+
+        // ---- 快速验证区：输入密钥即时出码 ----
+        // 输入框内容一变就重算，不做任何格式校验
+        quickSecret.addTextChangedListener(new SimpleWatcher() {
+            @Override public void afterTextChanged(Editable s) {
+                updateQuickPanel();
+            }
         });
+        findViewById(R.id.btnQuickCopy).setOnClickListener(v -> copyQuickCode());
     }
 
     // ---------------------------------------------------------------- 列表渲染
@@ -216,12 +230,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void selectInitial() {
-        if (!accounts.isEmpty()) {
-            Account account = accounts.get(0);
-            selectedId = account.id;
-            adapter.setSelectedId(selectedId);
-            updateQuickPanel();
-        }
+        // 快速验证区独立于账户列表，启动时不自动填充，留空等用户输入
+        updateQuickPanel();
     }
 
     private Account selectedAccount() {
@@ -234,6 +244,11 @@ public class MainActivity extends AppCompatActivity {
         selectedId = account.id;
         adapter.setSelectedId(selectedId);
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_SELECTED, selectedId).apply();
+        // 点击账户时把它的参数与密钥带到快速区，方便直接复制
+        quickAlgorithm = account.algorithm;
+        quickDigits = account.digits;
+        quickPeriod = account.period;
+        if (quickSecret != null) quickSecret.setText(account.secret);
         updateQuickPanel();
     }
 
@@ -264,32 +279,72 @@ public class MainActivity extends AppCompatActivity {
         return account == null ? 30 : account.period;
     }
 
+    /**
+     * 快速验证区：直接按输入框里的密钥实时出码。
+     *
+     * 设计原则与账户添加一致 —— 不校验、不阻拦：
+     *   输入框里只要有内容，就一定给出验证码。
+     *   密钥的取值完全由 deriveKey() 兜底（Base32 解不出就用原始字节）。
+     */
     private void updateQuickPanel() {
-        // 视图尚未就绪时直接返回，避免空指针。
-        if (quickCode == null || quickName == null || quickProgress == null) return;
+        // 视图尚未就绪时直接返回，避免空指针
+        if (quickCode == null || quickProgress == null || quickSecret == null) return;
 
-        Account account = selectedAccount();
-        if (account == null) {
-            quickCode.setText("--- ---");
-            quickName.setText(getString(R.string.quick_no_account));
+        String raw = quickSecret.getText() == null ? "" : quickSecret.getText().toString().trim();
+        if (quickMeta != null) quickMeta.setText("");
+
+        if (raw.isEmpty()) {
+            quickCode.setText(getString(R.string.quick_placeholder));
+            quickCode.setTextColor(color("app_muted"));
             safeProgress(quickProgress, 0, 1);
             return;
         }
-        long now = System.currentTimeMillis() / 1000L;
-        int period = clampPeriod(account.period);
-        int remaining = (int) (period - (now % period));
-        quickName.setText(account.display());
 
-        String value = computeCode(account, now);
+        long now = System.currentTimeMillis() / 1000L;
+        int period = clampPeriod(quickPeriod);
+        int digits = clampDigits(quickDigits);
+        int remaining = (int) (period - (now % period));
+
+        String value = computeQuickCode(raw, now);
         if (value == null) {
-            quickCode.setText(maskFor(account.digits));
+            quickCode.setText(getString(R.string.quick_placeholder));
             quickCode.setTextColor(color("app_muted"));
         } else {
             quickCode.setText(groupCode(value));
             quickCode.setTextColor(remaining <= 5 ? color("app_warning") : color("app_ink"));
         }
+
+        if (quickMeta != null) {
+            quickMeta.setText(quickAlgorithm + " · " + digits + "位 · " + period + "s");
+        }
         safeProgress(quickProgress, remaining, period);
         quickProgress.setIndicatorColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
+    }
+
+    /** 快速区专用：按当前参数直接算码，任何异常都返回 null 而不是抛出。 */
+    private String computeQuickCode(String secret, long seconds) {
+        try {
+            return totp(quickAlgorithm, clampDigits(quickDigits),
+                    clampPeriod(quickPeriod), secret, seconds);
+        } catch (GeneralSecurityException | RuntimeException exception) {
+            return null;
+        }
+    }
+
+    /** 复制快速区当前显示的验证码。 */
+    private void copyQuickCode() {
+        if (quickSecret == null) return;
+        String raw = quickSecret.getText() == null ? "" : quickSecret.getText().toString().trim();
+        if (raw.isEmpty()) {
+            toast(getString(R.string.quick_nothing_to_copy));
+            return;
+        }
+        String value = computeQuickCode(raw, System.currentTimeMillis() / 1000L);
+        if (value == null) {
+            toast(getString(R.string.quick_nothing_to_copy));
+            return;
+        }
+        copyText("验证码", value, getString(R.string.quick_copied));
     }
 
     /**
@@ -442,20 +497,16 @@ public class MainActivity extends AppCompatActivity {
                     String rawSecret = secretInput.getText() == null ? "" : secretInput.getText().toString().trim();
                     String periodText = periodInput.getText() == null ? "30" : periodInput.getText().toString().trim();
 
-                    // 自定义位数模式下从输入框取值
+                    // 自定义位数：超出常规范围时收敛到安全区间，而不是拦着不让加
                     if (groupDigits.getCheckedButtonId() == R.id.digCustom) {
                         String custom = digitsInput.getText() == null ? "" : digitsInput.getText().toString().trim();
-                        int parsed = parseIntSafe(custom, -1);
-                        if (parsed < MIN_DIGITS || parsed > MAX_DIGITS) {
-                            digitsWrap.setError("位数需在 " + MIN_DIGITS + "～" + MAX_DIGITS + " 之间");
-                            return;
-                        }
-                        digits[0] = parsed;
+                        int parsed = parseIntSafe(custom, 6);
+                        digits[0] = clampDigits(parsed);
                     }
                     digitsWrap.setError(null);
 
-                    int period = parseIntSafe(periodText, 30);
-                    if (period < MIN_PERIOD || period > MAX_PERIOD) period = 30;
+                    // 周期同样收敛到安全区间
+                    int period = clampPeriod(parseIntSafe(periodText, 30));
 
                     if (rawSecret.isEmpty()) {
                         secretWrap.setError("请输入密钥");
@@ -463,14 +514,11 @@ public class MainActivity extends AppCompatActivity {
                     }
                     secretWrap.setError(null);
 
+                    // 不做合法性校验、不做重复校验 —— 任何非空输入都能加进来
                     Account parsed = parseAccount(rawName, rawSecret, algorithm[0], digits[0], period);
                     if (parsed == null) {
-                        secretWrap.setError("密钥无效，请检查是否为合法 Base32");
-                        return;
-                    }
-                    Account duplicate = findBySecret(parsed.secret);
-                    if (duplicate != null && (account == null || !duplicate.id.equals(account.id))) {
-                        secretWrap.setError("该密钥已存在");
+                        // 理论上只有输入全空白才会走到这里
+                        secretWrap.setError("请输入密钥");
                         return;
                     }
 
@@ -517,10 +565,14 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 解析用户输入为账户对象。name 为空时自动命名为「验证器N」。
-     * 支持 otpauth:// 链接与纯 Base32 密钥两种输入。
+     *
+     * 支持 otpauth:// 链接与任意密钥文本。
+     * **不做合法性拦截**：只要输入非空，就一定构造出账户。
+     * 密钥能否算出验证码由 deriveKey() 保证，而不是在这里拒绝用户。
      */
     private Account parseAccount(String rawName, String rawSecret, String algorithm, int digits, int period) {
         String value = rawSecret == null ? "" : rawSecret.trim();
+        if (value.isEmpty()) return null;
 
         if (value.toLowerCase(Locale.US).startsWith("otpauth://")) {
             Account parsed = parseOtpAuth(value);
@@ -531,13 +583,8 @@ public class MainActivity extends AppCompatActivity {
                     parsed.issuer, parsed.secret, parsed.algorithm, parsed.digits, parsed.period);
         }
 
-        String secret = normalize(value);
-        if (secret.isEmpty()) return null;
-        try {
-            if (decodeBase32(secret).length < 10) return null;
-        } catch (RuntimeException exception) {
-            return null;
-        }
+        // 原样保存用户输入，不做清洗 —— 显示与再次编辑时保持所见即所得
+        String secret = value;
         String name = rawName == null ? "" : rawName.trim();
         if (name.isEmpty()) name = nextDefaultName();
         return new Account(UUID.randomUUID().toString(), name, "", secret, algorithm, digits, period);
@@ -766,7 +813,12 @@ public class MainActivity extends AppCompatActivity {
         return builder.toString();
     }
 
-    /** 支持 otpauth:// 逐行列表，以及「名称,密钥」简写行，混合也能解析。 */
+    /**
+     * 导入多行文本。支持 otpauth:// 链接、「名称,密钥」简写，以及裸密钥行。
+     *
+     * 与手动添加保持一致：**不做合法性拦截**。
+     * 只要这一行不是空行、不是注释，就当作一条密钥导入。
+     */
     private int importPayload(String payload) {
         int added = 0, skipped = 0, invalid = 0;
         if (payload == null) return 0;
@@ -781,13 +833,13 @@ public class MainActivity extends AppCompatActivity {
                 account = parseOtpAuth(line);
             } else if (line.contains(",") || line.contains("\t")) {
                 account = parseShorthand(line);
-            } else if (isPureBase32(line) && normalize(line).length() >= 16) {
-                // 裸密钥行：直接给一个默认名称
+            }
+            if (account == null) {
+                // 裸密钥行：原样收下，给一个默认名称
                 account = new Account(UUID.randomUUID().toString(), nextDefaultName(), "",
-                        normalize(line), "SHA1", 6, 30);
+                        line, "SHA1", 6, 30);
             }
 
-            if (account == null) { invalid++; continue; }
             if (findBySecret(account.secret) != null) { skipped++; continue; }
             accounts.add(account);
             added++;
@@ -799,27 +851,20 @@ public class MainActivity extends AppCompatActivity {
             renderAccounts();
             if (selectedId == null) selectInitial();
         }
-        toast("导入完成：新增 " + added + " 个，跳过重复 " + skipped + " 个，无效 " + invalid + " 行");
+        toast("导入完成：新增 " + added + " 个，跳过重复 " + skipped + " 个");
         return added;
     }
 
-    /** 「名称,密钥」简写。名称里可能含逗号，因此从右往左找分隔点并校验密钥段。 */
+    /** 「名称,密钥」简写。名称里可能含逗号，因此从右往左找分隔点。不做密钥合法性校验。 */
     private Account parseShorthand(String line) {
         for (int index = line.length() - 1; index > 0; index--) {
             char separator = line.charAt(index);
             if (separator != ',' && separator != '\t') continue;
             String name = line.substring(0, index).trim();
-            String tail = line.substring(index + 1);
-            if (name.isEmpty()) continue;
-            if (!isPureBase32(tail)) continue;
-            String secret = normalize(tail);
-            if (secret.length() < 16) continue;
-            try {
-                if (decodeBase32(secret).length < 10) continue;
-            } catch (RuntimeException exception) {
-                continue;
-            }
-            return new Account(UUID.randomUUID().toString(), name, "", secret, "SHA1", 6, 30);
+            String secret = line.substring(index + 1).trim();
+            if (name.isEmpty() || secret.isEmpty()) continue;
+            return new Account(UUID.randomUUID().toString(), name, "", secret,
+                    "SHA1", 6, 30);
         }
         return null;
     }
@@ -929,7 +974,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private String totp(String algorithm, int digits, int period, String secret, long seconds)
             throws GeneralSecurityException {
-        byte[] key = decodeBase32(secret);
+        byte[] key = deriveKey(secret);
         if (key.length == 0) throw new GeneralSecurityException("Empty key");
         if (digits < 1) throw new GeneralSecurityException("Invalid digits");
         if (period < 1) throw new GeneralSecurityException("Invalid period");
@@ -957,8 +1002,14 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
+    /**
+     * 标准 Base32 解码（RFC 4648）。
+     * 只接受 A-Z 与 2-7，遇到其它字符即返回空数组，
+     * 由 deriveKey() 决定是否退回原始字节。
+     */
     private byte[] decodeBase32(String value) {
         String clean = normalize(value);
+        if (clean.isEmpty()) return new byte[0];
         int buffer = 0, bits = 0, count = 0;
         byte[] output = new byte[clean.length() * 5 / 8];
         for (char character : clean.toCharArray()) {
@@ -971,6 +1022,29 @@ public class MainActivity extends AppCompatActivity {
         byte[] result = new byte[count];
         System.arraycopy(output, 0, result, 0, count);
         return result;
+    }
+
+    /**
+     * 从用户输入派生 HMAC 密钥。**永不失败**——这是「不设任何阻拦」的关键。
+     *
+     * 取密钥的顺序：
+     *   1. 标准 Base32 解码（绝大多数验证器给出的密钥都是这种）
+     *   2. 解码结果为空时，退回 UTF-8 原始字节
+     *
+     * 也就是说，哪怕只敲几个字母、甚至带了空格或其他符号，
+     * 也一定能得到一段非空字节参与 HMAC 运算，从而算出验证码。
+     */
+    private byte[] deriveKey(String value) {
+        if (value == null) return new byte[0];
+
+        // 1) 先试标准 Base32
+        byte[] decoded = decodeBase32(value);
+        if (decoded.length > 0) return decoded;
+
+        // 2) 退回原始字节（只去掉首尾空白，其余原样使用）
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return new byte[0];
+        return trimmed.getBytes(StandardCharsets.UTF_8);
     }
 
     private String normalize(String value) {

@@ -122,18 +122,34 @@
     letter-spacing: .08em;
   }
   .lower .who { font-size: 11px; color: #9AA1AC; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .quick-row { display: flex; align-items: center; margin-top: 2px; }
+
+  /* 快速区：密钥输入行 */
+  .secret-row { display: flex; align-items: center; gap: 8px; }
+  .secret-box {
+    flex: 1; height: 48px; border: 1px solid #E3E7ED; border-radius: 8px;
+    padding: 0 12px; display: flex; align-items: center;
+    font-family: "SF Mono", Consolas, monospace; font-size: 14px;
+  }
+  .secret-box.filled { color: #1F2430; }
+  .secret-box .ph { color: #9AA1AC; font-family: "Microsoft YaHei","PingFang SC",sans-serif; }
+  .secret-box .clear { margin-left: auto; color: #9AA1AC; font-size: 16px; }
+
+  /* 快速区：验证码行 */
+  .quick-row { display: flex; align-items: baseline; margin-top: 4px; }
   .quick {
     flex: 1; font-family: "SF Mono", Consolas, monospace;
-    font-size: 32px; font-weight: 700; color: #1F2430; letter-spacing: .06em;
+    font-size: 30px; font-weight: 700; color: #1F2430; letter-spacing: .06em;
   }
   .quick.warn { color: #E8710A; }
+  .quick.muted { color: #9AA1AC; }
+  .meta { font-size: 11px; color: #9AA1AC; font-family: "SF Mono", Consolas, monospace; }
   .btn-primary {
     background: #1A73E8; color: #fff; border-radius: 8px;
     height: 40px; padding: 0 18px; font-size: 14px; font-weight: 500;
     display: flex; align-items: center;
   }
-  .qtrack { height: 5px; background: #EEF1F5; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+  .btn-primary.ghost { background: #E8F0FE; color: #9AA1AC; }
+  .qtrack { height: 4px; background: #EEF1F5; border-radius: 3px; margin-top: 6px; overflow: hidden; }
   .qtrack i { display: block; height: 100%; background: #1A73E8; border-radius: 3px; }
 
   /* 空状态 */
@@ -235,18 +251,18 @@
     </div>
 
     <div class="lower">
-      <div class="label-row">
-        <span class="label">快速验证码</span>
-        <span class="who">验证器一</span>
+      <div class="secret-row">
+        <div class="secret-box filled">JBSWY3DPEHPK3PXP<span class="clear">✕</span></div>
+        <div class="btn-primary">复制</div>
       </div>
       <div class="quick-row">
         <div class="quick">498 271</div>
-        <div class="btn-primary">复制</div>
+        <div class="meta">SHA1 · 6位 · 30s</div>
       </div>
       <div class="qtrack"><i style="width:77%"></i></div>
     </div>
   </div>
-  <div class="caption">主界面 · 上 3/4 管理账户，下 1/4 快速取码</div>
+  <div class="caption">主界面 · 上方管理账户，下方贴密钥即时出码</div>
 </div>
 
 <!-- ============ 空状态 ============ -->
@@ -278,10 +294,12 @@
       <div class="divider"></div>
     </div>
     <div class="lower">
-      <div class="label-row"><span class="label">快速验证码</span><span class="who">未选择</span></div>
+      <div class="secret-row">
+        <div class="secret-box"><span class="ph">粘贴或输入密钥，立即出码</span></div>
+        <div class="btn-primary ghost">复制</div>
+      </div>
       <div class="quick-row">
-        <div class="quick" style="color:#6B7280">--- ---</div>
-        <div class="btn-primary" style="background:#E8F0FE;color:#9AA1AC">复制</div>
+        <div class="quick muted">--- ---</div>
       </div>
       <div class="qtrack"><i style="width:0%"></i></div>
     </div>

@@ -193,7 +193,7 @@
             android:background="@color/app_line" />
     </LinearLayout>
 
-    <!-- ==================== 下部 1/4：快速验证码区 ==================== -->
+    <!-- ==================== 下部 1/4：快速验证（贴密钥即时出码） ==================== -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -203,42 +203,55 @@
         android:background="@color/app_card"
         android:paddingStart="@dimen/page_padding"
         android:paddingEnd="@dimen/page_padding"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
+        <!-- 第一行：密钥输入 + 复制按钮 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/quick_title"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/app_muted"
-                android:letterSpacing="0.08" />
-
-            <TextView
-                android:id="@+id/quickName"
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/quickWrap"
+                style="@style/Widget.App.TextField.Quick"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:hint="@string/quick_secret_hint"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/app_muted">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/quickSecret"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textVisiblePassword|textNoSuggestions"
+                    android:imeOptions="actionDone"
+                    android:maxLines="1"
+                    android:fontFamily="monospace"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnQuickCopy"
+                style="@style/Widget.App.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:textSize="11sp"
-                android:textColor="@color/app_hint" />
+                android:minWidth="0dp"
+                android:text="@string/action_copy"
+                app:cornerRadius="@dimen/button_radius" />
         </LinearLayout>
 
+        <!-- 第二行：验证码 + 参数说明 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="2dp">
+            android:gravity="bottom"
+            android:layout_marginTop="4dp">
 
             <TextView
                 android:id="@+id/quickCode"
@@ -246,30 +259,32 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:singleLine="true"
+                android:ellipsize="end"
                 android:letterSpacing="0.06"
-                android:textSize="32sp"
+                android:textSize="30sp"
                 android:textStyle="bold"
                 android:textColor="@color/app_ink"
                 android:fontFamily="monospace"
-                android:text="--- ---" />
+                android:text="@string/quick_placeholder" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnQuickCopy"
-                style="@style/Widget.App.Button"
+            <TextView
+                android:id="@+id/quickMeta"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:text="@string/action_copy"
-                app:cornerRadius="@dimen/button_radius" />
+                android:layout_marginStart="8dp"
+                android:singleLine="true"
+                android:textSize="11sp"
+                android:textColor="@color/app_hint"
+                android:fontFamily="monospace" />
         </LinearLayout>
 
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/quickProgress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             app:trackCornerRadius="3dp"
-            app:trackThickness="5dp"
+            app:trackThickness="4dp"
             app:indicatorColor="@color/app_primary"
             app:trackColor="@color/app_divider" />
     </LinearLayout>
