@@ -1,10 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">@color/app_blue</item>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="AppTheme" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/app_primary</item>
+        <item name="colorOnPrimary">@color/app_on_primary</item>
+        <item name="colorPrimaryContainer">@color/app_primary_light</item>
+        <item name="colorOnPrimaryContainer">@color/app_primary_dark</item>
+        <item name="colorSurface">@color/app_card</item>
+        <item name="colorOnSurface">@color/app_ink</item>
+        <item name="colorSurfaceVariant">@color/app_surface</item>
+        <item name="colorOutline">@color/app_line</item>
+        <item name="colorError">@color/app_danger</item>
+
+        <item name="android:colorBackground">@color/app_surface</item>
+        <item name="android:statusBarColor">@color/app_surface</item>
         <item name="android:navigationBarColor">@color/app_surface</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">@color/app_surface</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:textColorPrimary">@color/app_ink</item>
+        <item name="android:textColorSecondary">@color/app_muted</item>
+        <item name="android:textColorHint">@color/app_hint</item>
+    </style>
+
+    <!-- 卡片：小圆角，克制一些，避免大圆角的“AI 味” -->
+    <style name="Widget.App.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">@dimen/card_radius</item>
+        <item name="cardElevation">2dp</item>
+        <item name="cardBackgroundColor">@color/app_card</item>
+        <item name="strokeColor">@color/app_line</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">0dp</item>
+    </style>
+
+    <style name="Widget.App.Card.Flat" parent="Widget.App.Card">
+        <item name="cardElevation">0dp</item>
+    </style>
+
+    <!-- 按钮：小圆角 -->
+    <style name="Widget.App.Button" parent="Widget.Material3.Button">
+        <item name="cornerRadius">@dimen/button_radius</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:minHeight">40dp</item>
+        <item name="iconPadding">6dp</item>
+    </style>
+
+    <style name="Widget.App.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="cornerRadius">@dimen/button_radius</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:minHeight">40dp</item>
+    </style>
+
+    <style name="Widget.App.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="cornerRadius">@dimen/button_radius</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <!-- 输入框：小圆角外框 -->
+    <style name="Widget.App.TextField" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxCornerRadiusTopStart">@dimen/field_radius</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/field_radius</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/field_radius</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/field_radius</item>
+        <item name="boxStrokeColor">@color/field_stroke</item>
+        <item name="hintTextColor">@color/app_muted</item>
+    </style>
+
+    <!-- 对话框 -->
+    <style name="AppDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="dialogCornerRadius">@dimen/dialog_radius</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.App.Button.Text</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.App.Button.Text</item>
     </style>
 </resources>

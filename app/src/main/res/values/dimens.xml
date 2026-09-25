@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 圆角统一收小，8dp 是克制的量级，不做大圆角 -->
+    <dimen name="card_radius">10dp</dimen>
+    <dimen name="button_radius">8dp</dimen>
+    <dimen name="field_radius">8dp</dimen>
+    <dimen name="dialog_radius">14dp</dimen>
+    <dimen name="chip_radius">6dp</dimen>
+
+    <dimen name="page_padding">16dp</dimen>
+    <dimen name="card_padding">14dp</dimen>
+    <dimen name="card_gap">8dp</dimen>
+</resources>

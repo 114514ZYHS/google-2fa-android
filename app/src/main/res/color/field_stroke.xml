@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 输入框描边：聚焦时主色，未聚焦时浅灰 -->
+    <selector xmlns:android="http://schemas.android.com/apk/res/android">
+        <item android:color="@color/app_primary" android:state_focused="true" />
+        <item android:color="@color/app_line" android:state_focused="false" />
+    </selector>
+</resources>

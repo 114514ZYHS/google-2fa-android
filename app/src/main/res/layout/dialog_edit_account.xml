@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/nameWrap"
+            style="@style/Widget.App.TextField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/field_name_hint"
+            app:helperText="@string/field_name_helper">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/nameInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:maxLines="1"
+                android:textSize="15sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/secretWrap"
+            style="@style/Widget.App.TextField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/field_secret_hint">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/secretInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapCharacters|textNoSuggestions"
+                android:maxLines="3"
+                android:fontFamily="monospace"
+                android:textSize="15sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- 高级选项：算法 / 位数 / 周期 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_panel"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/section_advanced"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/app_muted"
+                android:letterSpacing="0.06" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/section_advanced_hint"
+                android:textSize="11sp"
+                android:textColor="@color/app_hint" />
+
+            <!-- 算法 -->
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/groupAlgorithm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/algSha1"
+                    style="@style/Widget.App.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/alg_sha1" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/algSha256"
+                    style="@style/Widget.App.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/alg_sha256" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/algSha512"
+                    style="@style/Widget.App.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/alg_sha512" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <!-- 位数：任意位数都支持，这里给常用快捷值 -->
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/groupDigits"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/dig6"
+                    style="@style/Widget.App.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/digits_6" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/dig8"
+                    style="@style/Widget.App.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/digits_8" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/dig7"
+                    style="@style/Widget.App.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/digits_7" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/digCustom"
+                    style="@style/Widget.App.Button.Tonal"
+                    android:layout_width="0dp"
+                    android:layout_height="38dp"
+                    android:layout_weight="1"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="@string/digits_custom" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/digitsWrap"
+                style="@style/Widget.App.TextField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:visibility="gone"
+                android:hint="@string/field_digits_hint"
+                app:helperText="@string/field_digits_helper">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/digitsInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:maxLines="1"
+                    android:textSize="15sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/periodWrap"
+                style="@style/Widget.App.TextField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="@string/field_period_hint"
+                app:helperText="@string/field_period_helper">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/periodInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:maxLines="1"
+                    android:fontFamily="monospace"
+                    android:textSize="15sp"
+                    android:text="30" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

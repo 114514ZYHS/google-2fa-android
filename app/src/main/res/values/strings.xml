@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">2FA 验证器</string>
+
+    <!-- 操作 -->
+    <string name="action_add">添加</string>
+    <string name="action_import">导入</string>
+    <string name="action_export">导出</string>
+    <string name="action_sort">排序</string>
+    <string name="action_copy">复制</string>
+    <string name="action_copy_short">复制</string>
+    <string name="action_save">保存</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+    <string name="action_close">关闭</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_pin">置顶</string>
+    <string name="action_unpin">取消置顶</string>
+    <string name="action_copy_secret">复制密钥</string>
+    <string name="action_edit">编辑账户</string>
+
+    <!-- 搜索与空状态 -->
+    <string name="hint_search">搜索账户</string>
+    <string name="empty_title">还没有账户</string>
+    <string name="empty_hint">点右上角「添加」新建，或「导入」批量添加</string>
+    <string name="tag_pinned">置顶</string>
+
+    <!-- 快速区 -->
+    <string name="quick_title">快速验证码</string>
+    <string name="quick_no_account">未选择</string>
+
+    <!-- 新增/编辑对话框 -->
+    <string name="dialog_add_title">添加账户</string>
+    <string name="dialog_edit_title">编辑账户</string>
+    <string name="field_name_hint">账户名称</string>
+    <string name="field_name_helper">留空则自动命名为「验证器一」「验证器二」…</string>
+    <string name="field_secret_hint">密钥（Base32）或 otpauth:// 链接</string>
+    <string name="field_digits_hint">自定义位数</string>
+    <string name="field_digits_helper">支持 1～18 位任意长度</string>
+    <string name="field_period_hint">周期（秒）</string>
+    <string name="field_period_helper">常用 30 秒，范围 5～300</string>
+    <string name="section_advanced">高级选项</string>
+    <string name="section_advanced_hint">粘贴 otpauth:// 链接时，以下设置会自动识别并覆盖</string>
+    <string name="digits_6">6 位</string>
+    <string name="digits_7">7 位</string>
+    <string name="digits_8">8 位</string>
+    <string name="digits_custom">自定义</string>
+    <string name="alg_sha1">SHA1</string>
+    <string name="alg_sha256">SHA256</string>
+    <string name="alg_sha512">SHA512</string>
+
+    <!-- 提示 -->
+    <string name="toast_invalid_input">请输入有效的密钥</string>
+    <string name="toast_duplicate">该密钥已存在</string>
+    <string name="toast_name_empty">名称不能为空</string>
+    <string name="toast_clipboard_empty">剪贴板为空</string>
+    <string name="toast_code_copied">验证码已复制</string>
+    <string name="toast_secret_copied">密钥已复制</string>
+    <string name="toast_deleted">已删除</string>
+
+    <!-- 菜单 -->
+    <string name="menu_edit">编辑</string>
+    <string name="menu_copy_secret">复制密钥</string>
+    <string name="menu_pin">置顶</string>
+    <string name="menu_delete">删除</string>
+
+    <!-- 无障碍 -->
+    <string name="cd_more">更多操作</string>
+    <string name="cd_copy_code">复制验证码</string>
+</resources>

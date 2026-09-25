@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/app_surface">
+
+    <!-- ==================== 顶部标题栏 ==================== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="@dimen/page_padding"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/app_ink"
+            android:letterSpacing="0.01" />
+
+        <!-- 全局倒计时 -->
+        <TextView
+            android:id="@+id/globalTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="48dp"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/app_muted"
+            android:background="@drawable/bg_timer_pill"
+            android:text="30s" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAdd"
+            style="@style/Widget.App.Button.Text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:text="@string/action_add"
+            android:textColor="@color/app_primary"
+            app:icon="@drawable/ic_add"
+            app:iconTint="@color/app_primary"
+            app:iconGravity="textStart" />
+    </LinearLayout>
+
+    <!-- ==================== 上部 3/4：账户管理区 ==================== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="3"
+        android:orientation="vertical">
+
+        <!-- 搜索 -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/searchWrap"
+            style="@style/Widget.App.TextField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/page_padding"
+            android:layout_marginEnd="@dimen/page_padding"
+            android:layout_marginBottom="8dp"
+            android:hint="@string/hint_search"
+            app:startIconDrawable="@drawable/ic_search"
+            app:startIconTint="@color/app_muted"
+            app:endIconMode="clear_text"
+            app:endIconTint="@color/app_muted">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/searchInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:imeOptions="actionSearch"
+                android:maxLines="1"
+                android:textSize="15sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- 工具条：导入 / 导出 / 排序 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="@dimen/page_padding"
+            android:paddingEnd="@dimen/page_padding"
+            android:paddingBottom="8dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnImport"
+                style="@style/Widget.App.Button.Tonal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="@string/action_import"
+                app:icon="@drawable/ic_import"
+                app:iconGravity="textStart" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnExport"
+                style="@style/Widget.App.Button.Tonal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:text="@string/action_export"
+                app:icon="@drawable/ic_export"
+                app:iconGravity="textStart" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSort"
+                style="@style/Widget.App.Button.Tonal"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="@string/action_sort"
+                app:icon="@drawable/ic_sort"
+                app:iconGravity="textStart" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/accountList"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingStart="@dimen/page_padding"
+                android:paddingEnd="@dimen/page_padding"
+                android:paddingBottom="10dp"
+                android:scrollbars="vertical" />
+
+            <!-- 空状态 -->
+            <LinearLayout
+                android:id="@+id/emptyState"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:alpha="0.28"
+                    android:src="@drawable/ic_shield"
+                    app:tint="@color/app_muted"
+                    android:contentDescription="@string/empty_title" />
+
+                <TextView
+                    android:id="@+id/emptyTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/empty_title"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/app_muted" />
+
+                <TextView
+                    android:id="@+id/emptyHint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/empty_hint"
+                    android:textSize="13sp"
+                    android:textColor="@color/app_hint" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/app_line" />
+    </LinearLayout>
+
+    <!-- ==================== 下部 1/4：快速验证码区 ==================== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:background="@color/app_card"
+        android:paddingStart="@dimen/page_padding"
+        android:paddingEnd="@dimen/page_padding"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/quick_title"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/app_muted"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:id="@+id/quickName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textColor="@color/app_hint" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="2dp">
+
+            <TextView
+                android:id="@+id/quickCode"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:letterSpacing="0.06"
+                android:textSize="32sp"
+                android:textStyle="bold"
+                android:textColor="@color/app_ink"
+                android:fontFamily="monospace"
+                android:text="--- ---" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnQuickCopy"
+                style="@style/Widget.App.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/action_copy"
+                app:cornerRadius="@dimen/button_radius" />
+        </LinearLayout>
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/quickProgress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:trackCornerRadius="3dp"
+            app:trackThickness="5dp"
+            app:indicatorColor="@color/app_primary"
+            app:trackColor="@color/app_divider" />
+    </LinearLayout>
+</LinearLayout>

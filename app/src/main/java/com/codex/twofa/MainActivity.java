@@ -1,31 +1,35 @@
 package com.codex.twofa;
 
-import android.app.AlertDialog;
+import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
-import android.text.InputType;
 import android.text.TextWatcher;
-import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -47,19 +51,54 @@ import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-public class MainActivity extends android.app.Activity {
+/**
+ * 2FA 验证器主界面。
+ *
+ * 布局分两块：
+ *   上部 约 3/4 —— 账户管理区（搜索、导入导出、账户卡片列表）
+ *   下部 约 1/4 —— 快速验证码区（当前选中账户的大号验证码与倒计时）
+ *
+ * 算法层面不做任何限制：位数支持 1~18 任意值，算法支持 SHA1/256/512，
+ * 周期支持 5~300 秒，全部按输入值真实计算。
+ */
+public class MainActivity extends AppCompatActivity {
+
     private static final String PREFS = "accounts";
     private static final String KEY_ACCOUNTS = "items";
+    private static final String KEY_SELECTED = "selected";
     private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
     private static final String[] ALGORITHMS = {"SHA1", "SHA256", "SHA512"};
+
+    /** 位数允许范围。RFC 6238 只规定了 6/8，但实际实现普遍放宽，这里取安全上限 18。 */
+    private static final int MIN_DIGITS = 1;
+    private static final int MAX_DIGITS = 18;
+    private static final int MIN_PERIOD = 5;
+    private static final int MAX_PERIOD = 300;
+
     private static final int REQUEST_IMPORT_FILE = 4001;
     private static final int REQUEST_EXPORT_FILE = 4002;
 
+    /** 中文数字，用于「验证器一」「验证器二」这样的默认命名。 */
+    private static final String[] CN_NUMBERS = {
+            "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+            "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"
+    };
+
     private final ArrayList<Account> accounts = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private LinearLayout accountList;
-    private TextView timerText;
+
+    private AccountAdapter adapter;
+    private RecyclerView accountList;
+    private View emptyState;
+    private TextInputLayout searchWrap;
+    private TextInputEditText searchInput;
+    private TextView globalTimer;
+    private TextView quickCode;
+    private TextView quickName;
+    private LinearProgressIndicator quickProgress;
+
     private String query = "";
+    private String selectedId = null;
 
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
@@ -68,40 +107,35 @@ public class MainActivity extends android.app.Activity {
         }
     };
 
-    @Override public void onCreate(Bundle savedInstanceState) {
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        buildScreen();
+        setContentView(R.layout.activity_main);
+        bindViews();
         loadAccounts();
         renderAccounts();
+        selectInitial();
     }
 
     @Override protected void onResume() { super.onResume(); handler.post(ticker); }
     @Override protected void onPause() { handler.removeCallbacks(ticker); super.onPause(); }
 
-    // ---------------------------------------------------------------- 界面构建
+    // ---------------------------------------------------------------- 视图绑定
 
-    private void buildScreen() {
-        int pad = dp(20);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(pad, dp(12), pad, pad);
-        root.setBackgroundColor(color("app_surface"));
+    private void bindViews() {
+        accountList = findViewById(R.id.accountList);
+        emptyState = findViewById(R.id.emptyState);
+        searchWrap = findViewById(R.id.searchWrap);
+        searchInput = findViewById(R.id.searchInput);
+        globalTimer = findViewById(R.id.globalTimer);
+        quickCode = findViewById(R.id.quickCode);
+        quickName = findViewById(R.id.quickName);
+        quickProgress = findViewById(R.id.quickProgress);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("2FA", 22, color("app_ink"), Typeface.BOLD);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(56), 1));
-        timerText = text("30s", 16, color("app_muted"), Typeface.BOLD);
-        timerText.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        header.addView(timerText, new LinearLayout.LayoutParams(dp(56), dp(56)));
-        root.addView(header);
+        adapter = new AccountAdapter();
+        accountList.setLayoutManager(new LinearLayoutManager(this));
+        accountList.setAdapter(adapter);
 
-        EditText searchField = new EditText(this);
-        searchField.setHint("搜索账户或发行方");
-        searchField.setSingleLine();
-        searchField.setTextSize(15);
-        searchField.setInputType(InputType.TYPE_CLASS_TEXT);
-        searchField.addTextChangedListener(new TextWatcher() {
+        searchInput.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void afterTextChanged(Editable s) {
@@ -109,106 +143,354 @@ public class MainActivity extends android.app.Activity {
                 renderAccounts();
             }
         });
-        root.addView(searchField, new LinearLayout.LayoutParams(-1, -2));
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setPadding(0, dp(8), 0, 0);
-        actions.addView(actionButton("添加", "添加账户", view -> showAddDialog()), weight());
-        actions.addView(actionButton("导入", "导入账户", view -> showImportDialog()), weight());
-        actions.addView(actionButton("导出", "导出账户", view -> showExportDialog()), weight());
-        root.addView(actions);
-
-        ScrollView scroll = new ScrollView(this);
-        accountList = new LinearLayout(this);
-        accountList.setOrientation(LinearLayout.VERTICAL);
-        accountList.setPadding(0, dp(16), 0, 0);
-        scroll.addView(accountList);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+        findViewById(R.id.btnAdd).setOnClickListener(v -> showEditDialog(null));
+        findViewById(R.id.btnImport).setOnClickListener(v -> showImportDialog());
+        findViewById(R.id.btnExport).setOnClickListener(v -> showExportDialog());
+        findViewById(R.id.btnSort).setOnClickListener(v -> showSortDialog());
+        findViewById(R.id.btnQuickCopy).setOnClickListener(v -> {
+            Account account = selectedAccount();
+            if (account != null) copyCode(account);
+        });
     }
 
-    private LinearLayout.LayoutParams weight() {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1);
-        params.setMargins(dp(3), 0, dp(3), 0);
-        return params;
+    // ---------------------------------------------------------------- 列表渲染
+
+    private void renderAccounts() {
+        List<Account> visible = visibleAccounts();
+        adapter.submit(visible);
+
+        boolean nothingAtAll = accounts.isEmpty();
+        boolean noMatch = !nothingAtAll && visible.isEmpty();
+        emptyState.setVisibility(nothingAtAll || noMatch ? View.VISIBLE : View.GONE);
+        accountList.setVisibility(nothingAtAll || noMatch ? View.GONE : View.VISIBLE);
+        if (noMatch) {
+            TextView title = emptyState.findViewById(R.id.emptyTitle);
+            if (title != null) title.setText(getString(R.string.empty_title));
+        }
+        refreshCodes();
     }
 
-    private Button actionButton(String label, String description, View.OnClickListener listener) {
-        Button button = new Button(this);
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setContentDescription(description);
-        button.setOnClickListener(listener);
-        return button;
+    private List<Account> visibleAccounts() {
+        List<Account> result = new ArrayList<>();
+        for (Account account : accounts) {
+            if (query.isEmpty() || account.matches(query)) result.add(account);
+        }
+        return result;
     }
 
-    // ---------------------------------------------------------------- 新增账户
-
-    private void showAddDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(24), 0, dp(24), 0);
-        EditText name = new EditText(this);
-        name.setHint("账户名称");
-        name.setSingleLine();
-        form.addView(name);
-        EditText secret = new EditText(this);
-        secret.setHint("密钥（Base32）或 otpauth:// 链接");
-        secret.setSingleLine();
-        secret.setInputType(InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        form.addView(secret);
-        new AlertDialog.Builder(this)
-            .setTitle("添加账户")
-            .setMessage("可直接粘贴验证器的 otpauth:// 链接，会自动解析发行方、算法、位数与周期。")
-            .setView(form)
-            .setNegativeButton("取消", null)
-            .setPositiveButton("添加", (dialog, which) -> addAccount(name.getText().toString(), secret.getText().toString()))
-            .show();
+    private void selectInitial() {
+        if (!accounts.isEmpty()) {
+            Account account = accounts.get(0);
+            selectedId = account.id;
+            adapter.setSelectedId(selectedId);
+            updateQuickPanel();
+        }
     }
 
-    private void addAccount(String name, String secret) {
-        Account account = parseAccount(name, secret);
+    private Account selectedAccount() {
+        if (selectedId == null) return accounts.isEmpty() ? null : accounts.get(0);
+        for (Account account : accounts) if (account.id.equals(selectedId)) return account;
+        return accounts.isEmpty() ? null : accounts.get(0);
+    }
+
+    private void select(Account account) {
+        selectedId = account.id;
+        adapter.setSelectedId(selectedId);
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_SELECTED, selectedId).apply();
+        updateQuickPanel();
+    }
+
+    // ---------------------------------------------------------------- 定时刷新
+
+    private void refreshCodes() {
+        if (!accounts.isEmpty()) {
+            long now = System.currentTimeMillis() / 1000L;
+            int remaining = (int) (30 - (now % 30));
+            globalTimer.setText(remaining + "s");
+            globalTimer.setBackgroundResource(R.drawable.bg_timer_pill);
+            globalTimer.setTextColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
+        }
+        adapter.notifyDataSetChanged();
+        updateQuickPanel();
+    }
+
+    private void updateQuickPanel() {
+        Account account = selectedAccount();
         if (account == null) {
-            Toast.makeText(this, "请输入有效的账户名与密钥", Toast.LENGTH_SHORT).show();
+            quickCode.setText("--- ---");
+            quickName.setText(getString(R.string.quick_no_account));
+            quickProgress.setProgress(0);
             return;
         }
-        if (findBySecret(account.secret) != null) {
-            Toast.makeText(this, "该密钥已存在", Toast.LENGTH_SHORT).show();
-            return;
+        long now = System.currentTimeMillis() / 1000L;
+        int remaining = (int) (account.period - (now % account.period));
+        quickName.setText(account.display());
+
+        String value = computeCode(account, now);
+        if (value == null) {
+            quickCode.setText(maskFor(account.digits));
+            quickCode.setTextColor(color("app_muted"));
+        } else {
+            quickCode.setText(groupCode(value));
+            quickCode.setTextColor(remaining <= 5 ? color("app_warning") : color("app_ink"));
         }
-        accounts.add(account);
-        sortAccounts();
-        saveAccounts();
-        renderAccounts();
-        Toast.makeText(this, "已添加 " + account.display(), Toast.LENGTH_SHORT).show();
+        quickProgress.setMax(account.period);
+        quickProgress.setProgress(remaining);
+        quickProgress.setIndicatorColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
     }
 
-    /** 支持纯 Base32 密钥或完整的 otpauth:// URI，返回 null 表示输入无效。 */
-    private Account parseAccount(String rawName, String rawSecret) {
+    /** 计算验证码，失败返回 null。位数不限，按实际位数生成。 */
+    private String computeCode(Account account, long seconds) {
+        try {
+            return totp(account.algorithm, account.digits, account.period, account.secret, seconds);
+        } catch (GeneralSecurityException | RuntimeException exception) {
+            return null;
+        }
+    }
+
+    /** 把验证码按 3~4 位分组，便于人眼核对；位数不是 6/8 时原样显示。 */
+    private String groupCode(String code) {
+        if (code.length() == 6) return code.substring(0, 3) + " " + code.substring(3);
+        if (code.length() == 8) return code.substring(0, 4) + " " + code.substring(4);
+        if (code.length() >= 4) {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < code.length(); i++) {
+                if (i > 0 && i % 4 == 0) builder.append(' ');
+                builder.append(code.charAt(i));
+            }
+            return builder.toString();
+        }
+        return code;
+    }
+
+    private String maskFor(int digits) {
+        StringBuilder builder = new StringBuilder();
+        int half = Math.max(1, digits / 2);
+        for (int i = 0; i < digits; i++) {
+            if (i == half && digits >= 4) builder.append(' ');
+            builder.append('-');
+        }
+        return builder.toString();
+    }
+
+    private void copyCode(Account account) {
+        String value = computeCode(account, System.currentTimeMillis() / 1000L);
+        if (value == null) {
+            toast("无法计算验证码，请检查密钥");
+            return;
+        }
+        int remaining = (int) (account.period - (System.currentTimeMillis() / 1000L) % account.period);
+        copyText("验证码", value, "已复制，剩余 " + remaining + " 秒");
+    }
+
+    private void copyText(String label, String value, String message) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null) return;
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, value));
+        toast(message);
+    }
+
+    // ---------------------------------------------------------------- 账户增删改
+
+    /**
+     * 新增或编辑账户。account 为 null 表示新增。
+     * 名称留空时自动使用「验证器N」。
+     */
+    private void showEditDialog(Account account) {
+        View content = LayoutInflater.from(this).inflate(R.layout.dialog_edit_account, null, false);
+
+        TextInputLayout nameWrap = content.findViewById(R.id.nameWrap);
+        TextInputLayout secretWrap = content.findViewById(R.id.secretWrap);
+        TextInputEditText nameInput = content.findViewById(R.id.nameInput);
+        TextInputEditText secretInput = content.findViewById(R.id.secretInput);
+        TextInputLayout digitsWrap = content.findViewById(R.id.digitsWrap);
+        TextInputEditText digitsInput = content.findViewById(R.id.digitsInput);
+        TextInputEditText periodInput = content.findViewById(R.id.periodInput);
+        MaterialButtonToggleGroup groupAlgorithm = content.findViewById(R.id.groupAlgorithm);
+        MaterialButtonToggleGroup groupDigits = content.findViewById(R.id.groupDigits);
+
+        final String[] algorithm = {account == null ? "SHA1" : account.algorithm};
+        final int[] digits = {account == null ? 6 : account.digits};
+
+        // 编辑已有账户时预填
+        if (account != null) {
+            nameInput.setText(account.name);
+            nameInput.setSelection(account.name.length());
+            secretInput.setText(account.secret);
+            periodInput.setText(String.valueOf(account.period));
+        }
+
+        applyAlgorithmSelection(groupAlgorithm, algorithm[0]);
+        applyDigitsSelection(groupDigits, digits[0], digitsWrap, digitsInput);
+
+        groupAlgorithm.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) return;
+            if (checkedId == R.id.algSha1) algorithm[0] = "SHA1";
+            else if (checkedId == R.id.algSha256) algorithm[0] = "SHA256";
+            else if (checkedId == R.id.algSha512) algorithm[0] = "SHA512";
+        });
+
+        groupDigits.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) return;
+            if (checkedId == R.id.dig6) { digits[0] = 6; digitsWrap.setVisibility(View.GONE); }
+            else if (checkedId == R.id.dig7) { digits[0] = 7; digitsWrap.setVisibility(View.GONE); }
+            else if (checkedId == R.id.dig8) { digits[0] = 8; digitsWrap.setVisibility(View.GONE); }
+            else { digitsWrap.setVisibility(View.VISIBLE); digitsInput.requestFocus(); }
+        });
+
+        // 粘贴 otpauth:// 链接时自动识别参数，并回填到界面
+        secretInput.addTextChangedListener(new SimpleWatcher() {
+            @Override public void afterTextChanged(Editable s) {
+                String raw = s.toString().trim();
+                if (!raw.toLowerCase(Locale.US).startsWith("otpauth://")) return;
+                Account parsed = parseOtpAuth(raw);
+                if (parsed == null) return;
+                algorithm[0] = parsed.algorithm;
+                digits[0] = parsed.digits;
+                applyAlgorithmSelection(groupAlgorithm, parsed.algorithm);
+                applyDigitsSelection(groupDigits, parsed.digits, digitsWrap, digitsInput);
+                periodInput.setText(String.valueOf(parsed.period));
+                if (nameInput.getText().toString().trim().isEmpty() && !parsed.name.isEmpty()) {
+                    nameInput.setText(parsed.name);
+                }
+            }
+        });
+
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
+                .setTitle(account == null ? R.string.dialog_add_title : R.string.dialog_edit_title)
+                .setView(content)
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.action_save, null);
+
+        androidx.appcompat.app.AlertDialog dialog = builder.create();
+        dialog.show();
+        // 自行处理点击，校验不通过时不关闭对话框
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(v -> {
+                    String rawName = nameInput.getText() == null ? "" : nameInput.getText().toString().trim();
+                    String rawSecret = secretInput.getText() == null ? "" : secretInput.getText().toString().trim();
+                    String periodText = periodInput.getText() == null ? "30" : periodInput.getText().toString().trim();
+
+                    // 自定义位数模式下从输入框取值
+                    if (groupDigits.getCheckedButtonId() == R.id.digCustom) {
+                        String custom = digitsInput.getText() == null ? "" : digitsInput.getText().toString().trim();
+                        int parsed = parseIntSafe(custom, -1);
+                        if (parsed < MIN_DIGITS || parsed > MAX_DIGITS) {
+                            digitsWrap.setError("位数需在 " + MIN_DIGITS + "～" + MAX_DIGITS + " 之间");
+                            return;
+                        }
+                        digits[0] = parsed;
+                    }
+                    digitsWrap.setError(null);
+
+                    int period = parseIntSafe(periodText, 30);
+                    if (period < MIN_PERIOD || period > MAX_PERIOD) period = 30;
+
+                    if (rawSecret.isEmpty()) {
+                        secretWrap.setError("请输入密钥");
+                        return;
+                    }
+                    secretWrap.setError(null);
+
+                    Account parsed = parseAccount(rawName, rawSecret, algorithm[0], digits[0], period);
+                    if (parsed == null) {
+                        secretWrap.setError("密钥无效，请检查是否为合法 Base32");
+                        return;
+                    }
+                    Account duplicate = findBySecret(parsed.secret);
+                    if (duplicate != null && (account == null || !duplicate.id.equals(account.id))) {
+                        secretWrap.setError("该密钥已存在");
+                        return;
+                    }
+
+                    if (account == null) {
+                        accounts.add(parsed);
+                        sortAccounts();
+                        saveAccounts();
+                        selectedId = parsed.id;
+                        renderAccounts();
+                        select(parsed);
+                        toast("已添加 " + parsed.display());
+                    } else {
+                        account.name = parsed.name;
+                        account.issuer = parsed.issuer;
+                        account.algorithm = parsed.algorithm;
+                        account.digits = parsed.digits;
+                        account.period = parsed.period;
+                        saveAccounts();
+                        renderAccounts();
+                        updateQuickPanel();
+                        toast("已保存");
+                    }
+                    dialog.dismiss();
+                });
+    }
+
+    private void applyAlgorithmSelection(MaterialButtonToggleGroup group, String algorithm) {
+        if ("SHA256".equals(algorithm)) group.check(R.id.algSha256);
+        else if ("SHA512".equals(algorithm)) group.check(R.id.algSha512);
+        else group.check(R.id.algSha1);
+    }
+
+    private void applyDigitsSelection(MaterialButtonToggleGroup group, int digits,
+                                      TextInputLayout wrap, TextInputEditText input) {
+        if (digits == 6) { group.check(R.id.dig6); wrap.setVisibility(View.GONE); }
+        else if (digits == 7) { group.check(R.id.dig7); wrap.setVisibility(View.GONE); }
+        else if (digits == 8) { group.check(R.id.dig8); wrap.setVisibility(View.GONE); }
+        else {
+            group.check(R.id.digCustom);
+            wrap.setVisibility(View.VISIBLE);
+            input.setText(String.valueOf(digits));
+        }
+    }
+
+    /**
+     * 解析用户输入为账户对象。name 为空时自动命名为「验证器N」。
+     * 支持 otpauth:// 链接与纯 Base32 密钥两种输入。
+     */
+    private Account parseAccount(String rawName, String rawSecret, String algorithm, int digits, int period) {
         String value = rawSecret == null ? "" : rawSecret.trim();
+
         if (value.toLowerCase(Locale.US).startsWith("otpauth://")) {
             Account parsed = parseOtpAuth(value);
             if (parsed == null) return null;
-            if (rawName != null && !rawName.trim().isEmpty()) {
-                return new Account(UUID.randomUUID().toString(), rawName.trim(), parsed.issuer,
-                        parsed.secret, parsed.algorithm, parsed.digits, parsed.period);
-            }
-            return parsed;
+            String name = rawName == null ? "" : rawName.trim();
+            return new Account(UUID.randomUUID().toString(),
+                    name.isEmpty() ? parsed.name : name,
+                    parsed.issuer, parsed.secret, parsed.algorithm, parsed.digits, parsed.period);
         }
-        String clean = normalize(value);
-        if (rawName == null || rawName.trim().isEmpty() || !isValidSecret(clean)) return null;
-        return new Account(UUID.randomUUID().toString(), rawName.trim(), "", clean, "SHA1", 6, 30);
+
+        String secret = normalize(value);
+        if (secret.isEmpty()) return null;
+        try {
+            if (decodeBase32(secret).length < 10) return null;
+        } catch (RuntimeException exception) {
+            return null;
+        }
+        String name = rawName == null ? "" : rawName.trim();
+        if (name.isEmpty()) name = nextDefaultName();
+        return new Account(UUID.randomUUID().toString(), name, "", secret, algorithm, digits, period);
     }
 
-    private boolean isValidSecret(String secret) {
-        try {
-            if (secret.isEmpty() || decodeBase32(secret).length < 10) return false;
-            totp("SHA1", 6, 30, secret, System.currentTimeMillis() / 1000L);
-            return true;
-        } catch (GeneralSecurityException | RuntimeException exception) {
-            return false;
+    /** 「验证器一」「验证器二」…… 依次取第一个未被占用的编号。 */
+    private String nextDefaultName() {
+        int index = 0;
+        while (true) {
+            String candidate = "验证器" + numberLabel(index);
+            if (!nameUsed(candidate)) return candidate;
+            index++;
         }
+    }
+
+    private boolean nameUsed(String name) {
+        for (Account account : accounts) if (name.equals(account.name)) return true;
+        return false;
+    }
+
+    private String numberLabel(int index) {
+        if (index < CN_NUMBERS.length) return CN_NUMBERS[index];
+        return String.valueOf(index + 1);
     }
 
     // ---------------------------------------------------------------- otpauth 解析
@@ -218,10 +500,9 @@ public class MainActivity extends android.app.Activity {
             Uri parsed = Uri.parse(uri);
             if (!"otpauth".equalsIgnoreCase(parsed.getScheme())) return null;
             String type = parsed.getHost();
-            if (type == null || !"totp".equalsIgnoreCase(type)) return null; // 暂不支持 hotp
+            if (type == null || !"totp".equalsIgnoreCase(type)) return null;
 
-            // label 形如 "Issuer:account"，也可能只写 account。无论 issuer 参数是否存在，
-            // 只要 label 含冒号就先拆分，避免名称里残留 "Issuer:" 前缀。
+            // label 形如 "Issuer:account"，也可能只写 account
             String label = parsed.getPath() == null ? "" : parsed.getPath().replaceFirst("^/", "");
             String name = Uri.decode(label);
             String labelIssuer = null;
@@ -234,15 +515,19 @@ public class MainActivity extends android.app.Activity {
             if (issuer == null || issuer.isEmpty()) issuer = labelIssuer;
             if (issuer == null) issuer = "";
             if (name.isEmpty()) name = issuer;
-            if (name.isEmpty()) name = "未命名账户";
+            if (name.isEmpty()) name = nextDefaultName();
 
             String secret = normalize(param(parsed, "secret"));
-            if (secret.isEmpty() || !isValidSecret(secret)) return null;
+            if (secret.isEmpty()) return null;
+            if (decodeBase32(secret).length == 0) return null;
 
             String algorithm = normalizeAlgorithm(param(parsed, "algorithm"));
-            int digits = parseChoice(param(parsed, "digits"), 6, new int[]{6, 8});
-            int period = parseChoice(param(parsed, "period"), 30, null);
-            if (period < 5 || period > 300) period = 30;
+            // 位数：信任链接里的值并做边界裁剪，不再限制只能是 6 或 8
+            int digits = parseIntSafe(param(parsed, "digits"), 6);
+            if (digits < MIN_DIGITS || digits > MAX_DIGITS) digits = 6;
+
+            int period = parseIntSafe(param(parsed, "period"), 30);
+            if (period < MIN_PERIOD || period > MAX_PERIOD) period = 30;
 
             return new Account(UUID.randomUUID().toString(), name, issuer, secret, algorithm, digits, period);
         } catch (RuntimeException exception) {
@@ -261,302 +546,214 @@ public class MainActivity extends android.app.Activity {
         return "SHA1";
     }
 
-    private int parseChoice(String value, int fallback, int[] allowed) {
-        try {
-            int parsed = Integer.parseInt(value.trim());
-            if (allowed == null) return parsed;
-            for (int candidate : allowed) if (candidate == parsed) return parsed;
-        } catch (RuntimeException ignored) { }
-        return fallback;
+    private int parseIntSafe(String value, int fallback) {
+        if (value == null) return fallback;
+        try { return Integer.parseInt(value.trim()); } catch (RuntimeException exception) { return fallback; }
     }
 
-    // ---------------------------------------------------------------- 列表渲染
+    // ---------------------------------------------------------------- 排序与菜单
 
-    private void renderAccounts() {
-        accountList.removeAllViews();
-        if (accounts.isEmpty()) {
-            accountList.addView(emptyState("还没有账户\n点击上方“添加”，或粘贴 otpauth:// 链接导入"));
-            return;
-        }
-        List<Account> visible = new ArrayList<>();
-        for (Account account : accounts) if (query.isEmpty() || account.matches(query)) visible.add(account);
-        if (visible.isEmpty()) {
-            accountList.addView(emptyState("没有匹配“" + query + "”的账户"));
-            return;
-        }
-        for (Account account : visible) accountList.addView(accountRow(account));
-        refreshCodes();
+    private void sortAccounts() {
+        Collections.sort(accounts, new Comparator<Account>() {
+            @Override public int compare(Account a, Account b) {
+                if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+                return a.display().compareToIgnoreCase(b.display());
+            }
+        });
     }
 
-    private View emptyState(String message) {
-        TextView empty = text(message, 15, color("app_muted"), Typeface.NORMAL);
-        empty.setGravity(Gravity.CENTER);
-        empty.setLineSpacing(dp(4), 1f);
-        empty.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(140)));
-        return empty;
-    }
-
-    private View accountRow(Account account) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(dp(16), dp(14), dp(12), dp(12));
-        row.setBackground(roundRect(Color.WHITE, color("app_line")));
-        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
-        rowParams.setMargins(0, 0, 0, dp(12));
-        row.setLayoutParams(rowParams);
-
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout nameBlock = new LinearLayout(this);
-        nameBlock.setOrientation(LinearLayout.VERTICAL);
-        TextView name = text(account.display(), 16, color("app_ink"), Typeface.BOLD);
-        name.setSingleLine();
-        nameBlock.addView(name);
-        TextView meta = text(account.meta(), 12, color("app_muted"), Typeface.NORMAL);
-        meta.setSingleLine();
-        nameBlock.addView(meta);
-        top.addView(nameBlock, new LinearLayout.LayoutParams(0, -2, 1));
-
-        if (account.pinned) {
-            TextView pin = text("置顶", 11, color("app_blue"), Typeface.BOLD);
-            pin.setPadding(dp(8), dp(2), dp(8), dp(2));
-            pin.setBackground(roundRect(color("app_surface"), color("app_line")));
-            LinearLayout.LayoutParams pinParams = new LinearLayout.LayoutParams(-2, -2);
-            pinParams.setMargins(0, 0, dp(8), 0);
-            top.addView(pin, pinParams);
-        }
-
-        Button remove = new Button(this);
-        remove.setText("删除");
-        remove.setAllCaps(false);
-        remove.setContentDescription("删除 " + account.display());
-        remove.setOnClickListener(view -> confirmDelete(account));
-        top.addView(remove, new LinearLayout.LayoutParams(dp(84), dp(44)));
-        row.addView(top);
-
-        TextView code = text(maskCode(account), 34, color("app_ink"), Typeface.MONOSPACE);
-        code.setTag(account.id);
-        code.setGravity(Gravity.CENTER_VERTICAL);
-        code.setContentDescription("复制 " + account.display() + " 的验证码");
-        code.setPadding(0, dp(6), 0, dp(6));
-        code.setOnClickListener(view -> copyCode(account, ((TextView) view).getText().toString()));
-        code.setOnLongClickListener(view -> { showAccountMenu(account); return true; });
-        row.addView(code, new LinearLayout.LayoutParams(-1, dp(58)));
-
-        ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progress.setTag("progress-" + account.id);
-        progress.setMax(account.period);
-        row.addView(progress, new LinearLayout.LayoutParams(-1, dp(8)));
-
-        // 长按整行或验证码均可调出操作菜单
-        row.setOnLongClickListener(view -> { showAccountMenu(account); return true; });
-        return row;
-    }
-
-    private String maskCode(Account account) {
-        return account.digits == 8 ? "--------" : "------";
+    private void showSortDialog() {
+        String[] items = {"按名称排序", "按添加顺序排序", "按发行方排序"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.action_sort)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) {
+                        for (Account account : accounts) account.pinned = false;
+                        sortAccounts();
+                    } else if (which == 1) {
+                        Collections.sort(accounts, (a, b) -> 0);
+                    } else {
+                        Collections.sort(accounts, (a, b) ->
+                                a.issuer.compareToIgnoreCase(b.issuer));
+                    }
+                    saveAccounts();
+                    renderAccounts();
+                })
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
     }
 
     private void showAccountMenu(Account account) {
-        String[] items = {account.pinned ? "取消置顶" : "置顶", "重命名", "复制密钥", "删除"};
-        new AlertDialog.Builder(this)
-            .setTitle(account.display())
-            .setItems(items, (dialog, which) -> {
-                switch (which) {
-                    case 0:
-                        account.pinned = !account.pinned;
-                        sortAccounts();
-                        saveAccounts();
-                        renderAccounts();
-                        break;
-                    case 1: promptRename(account); break;
-                    case 2: copyText("2FA secret", account.secret, "密钥已复制"); break;
-                    case 3: confirmDelete(account); break;
-                    default: break;
-                }
-            })
-            .setNegativeButton("关闭", null)
-            .show();
-    }
-
-    private void promptRename(Account account) {
-        EditText input = new EditText(this);
-        input.setSingleLine();
-        input.setText(account.name);
-        input.setSelection(account.name.length());
-        LinearLayout wrap = new LinearLayout(this);
-        wrap.setPadding(dp(24), 0, dp(24), 0);
-        wrap.addView(input);
-        new AlertDialog.Builder(this)
-            .setTitle("重命名账户")
-            .setView(wrap)
-            .setNegativeButton("取消", null)
-            .setPositiveButton("保存", (dialog, which) -> {
-                String value = input.getText().toString().trim();
-                if (value.isEmpty()) { Toast.makeText(this, "名称不能为空", Toast.LENGTH_SHORT).show(); return; }
-                account.name = value;
-                saveAccounts();
-                renderAccounts();
-            })
-            .show();
+        String pinLabel = account.pinned ? getString(R.string.action_unpin) : getString(R.string.action_pin);
+        String[] items = {
+                getString(R.string.action_edit),
+                pinLabel,
+                getString(R.string.action_copy_secret),
+                getString(R.string.action_delete)
+        };
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(account.display())
+                .setItems(items, (dialog, which) -> {
+                    switch (which) {
+                        case 0: showEditDialog(account); break;
+                        case 1:
+                            account.pinned = !account.pinned;
+                            sortAccounts();
+                            saveAccounts();
+                            renderAccounts();
+                            break;
+                        case 2:
+                            copyText("2FA 密钥", account.secret, getString(R.string.toast_secret_copied));
+                            break;
+                        case 3: confirmDelete(account); break;
+                        default: break;
+                    }
+                })
+                .setNegativeButton(R.string.action_close, null)
+                .show();
     }
 
     private void confirmDelete(Account account) {
-        new AlertDialog.Builder(this).setMessage("删除 " + account.display() + "？")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("删除", (dialog, which) -> {
-                accounts.remove(account); saveAccounts(); renderAccounts();
-            }).show();
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.action_delete)
+                .setMessage("确定删除「" + account.display() + "」？此操作不可撤销。")
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.action_delete, (dialog, which) -> {
+                    accounts.remove(account);
+                    if (account.id.equals(selectedId)) {
+                        selectedId = accounts.isEmpty() ? null : accounts.get(0).id;
+                    }
+                    saveAccounts();
+                    renderAccounts();
+                    updateQuickPanel();
+                    toast(getString(R.string.toast_deleted));
+                })
+                .show();
     }
 
-    // ---------------------------------------------------------------- 刷新与复制
-
-    private void refreshCodes() {
-        if (accounts.isEmpty()) return;
-        long now = System.currentTimeMillis() / 1000L;
-        int standardRemaining = (int) (30 - (now % 30));
-        timerText.setText(standardRemaining + "s");
-        timerText.setTextColor(standardRemaining <= 5 ? color("app_blue") : color("app_muted"));
-
-        for (Account account : accounts) {
-            TextView code = findByTag(accountList, account.id, TextView.class);
-            ProgressBar progress = findByTag(accountList, "progress-" + account.id, ProgressBar.class);
-            if (code == null) continue;
-            int remaining = (int) (account.period - (now % account.period));
-            try {
-                String value = totp(account.algorithm, account.digits, account.period, account.secret, now);
-                code.setText(formatCode(value));
-                code.setTextColor(remaining <= 5 ? color("app_blue") : color("app_ink"));
-            } catch (GeneralSecurityException | RuntimeException exception) {
-                code.setText(maskCode(account));
-                code.setTextColor(color("app_muted"));
-            }
-            if (progress != null) progress.setProgress(remaining);
-        }
-    }
-
-    /** 六位码显示为「123 456」，八位码四四分组，便于核对。 */
-    private String formatCode(String code) {
-        if (code.length() == 8) return code.substring(0, 4) + " " + code.substring(4);
-        if (code.length() == 6) return code.substring(0, 3) + " " + code.substring(3);
-        return code;
-    }
-
-    private void copyCode(Account account, String code) {
-        String plain = code.replace(" ", "");
-        if (plain.replace("-", "").isEmpty()) return;
-        int remaining = (int) (account.period - (System.currentTimeMillis() / 1000L) % account.period);
-        copyText("2FA code", plain, "已复制，剩余 " + remaining + " 秒");
-    }
-
-    private void copyText(String label, String value, String toast) {
-        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        if (clipboard == null) return;
-        clipboard.setPrimaryClip(ClipData.newPlainText(label, value));
-        Toast.makeText(this, toast, Toast.LENGTH_SHORT).show();
-    }
-
-    // ---------------------------------------------------------------- 导入 / 导出
+    // ---------------------------------------------------------------- 导入导出
 
     private void showImportDialog() {
-        new AlertDialog.Builder(this)
-            .setTitle("导入账户")
-            .setItems(new String[]{"从剪贴板粘贴", "从文件读取"}, (dialog, which) -> {
-                if (which == 0) importFromClipboard();
-                else pickImportFile();
-            })
-            .setNegativeButton("取消", null)
-            .show();
+        String[] items = {getString(R.string.action_import) + "（剪贴板）", "从文件导入"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.action_import)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) importFromClipboard();
+                    else {
+                        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                        intent.addCategory(Intent.CATEGORY_OPENABLE);
+                        intent.setType("*/*");
+                        startActivityForResult(intent, REQUEST_IMPORT_FILE);
+                    }
+                })
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
     }
 
     private void importFromClipboard() {
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null || !clipboard.hasPrimaryClip() || clipboard.getPrimaryClip() == null
                 || clipboard.getPrimaryClip().getItemCount() == 0) {
-            Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+            toast(getString(R.string.toast_clipboard_empty));
             return;
         }
-        ClipData.Item item = clipboard.getPrimaryClip().getItemAt(0);
-        CharSequence text = item == null ? null : item.coerceToText(this);
-        importPayload(text == null ? "" : text.toString());
-    }
-
-    private void pickImportFile() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/*");
-        try {
-            startActivityForResult(intent, REQUEST_IMPORT_FILE);
-        } catch (RuntimeException exception) {
-            Toast.makeText(this, "无法打开文件选择器", Toast.LENGTH_SHORT).show();
+        CharSequence text = clipboard.getPrimaryClip().getItemAt(0).coerceToText(this);
+        if (text == null || text.length() == 0) {
+            toast(getString(R.string.toast_clipboard_empty));
+            return;
         }
+        importPayload(text.toString());
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null) return;
-        if (requestCode == REQUEST_EXPORT_FILE && data.getData() != null) {
-            String payload = data.getStringExtra("payload");
-            writeExport(data.getData(), payload == null ? buildExportPayload() : payload);
-            return;
-        }
-        if (requestCode != REQUEST_IMPORT_FILE || data.getData() == null) return;
-        try (InputStream stream = getContentResolver().openInputStream(data.getData())) {
-            if (stream == null) throw new IllegalStateException("empty stream");
-            StringBuilder builder = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) builder.append(line).append('\n');
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        if (requestCode == REQUEST_IMPORT_FILE) {
+            try (InputStream stream = getContentResolver().openInputStream(uri)) {
+                if (stream == null) { toast("无法读取文件"); return; }
+                importPayload(readAll(stream));
+            } catch (Exception exception) {
+                toast("读取失败：" + exception.getMessage());
             }
-            importPayload(builder.toString());
-        } catch (Exception exception) {
-            Toast.makeText(this, "读取文件失败", Toast.LENGTH_SHORT).show();
+        } else if (requestCode == REQUEST_EXPORT_FILE) {
+            try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
+                if (stream == null) { toast("无法写入文件"); return; }
+                stream.write(buildExportPayload().getBytes(StandardCharsets.UTF_8));
+                toast("已导出 " + accounts.size() + " 个账户");
+            } catch (Exception exception) {
+                toast("写入失败：" + exception.getMessage());
+            }
         }
     }
 
-    /** 支持 otpauth:// 链接，也支持「名称,密钥」或「名称<TAB>密钥」两种简写。 */
-    private void importPayload(String payload) {
+    private String readAll(InputStream stream) throws Exception {
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) builder.append(line).append('\n');
+        }
+        return builder.toString();
+    }
+
+    /** 支持 otpauth:// 逐行列表，以及「名称,密钥」简写行，混合也能解析。 */
+    private int importPayload(String payload) {
         int added = 0, skipped = 0, invalid = 0;
-        for (String rawLine : payload.split("[\\r\\n]+")) {
+        if (payload == null) return 0;
+
+        String[] lines = payload.split("\\r?\\n");
+        for (String rawLine : lines) {
             String line = rawLine.trim();
             if (line.isEmpty() || line.startsWith("#")) continue;
-            Account account;
+
+            Account account = null;
             if (line.toLowerCase(Locale.US).startsWith("otpauth://")) {
                 account = parseOtpAuth(line);
-            } else {
+            } else if (line.contains(",") || line.contains("\t")) {
                 account = parseShorthand(line);
+            } else if (isPureBase32(line) && normalize(line).length() >= 16) {
+                // 裸密钥行：直接给一个默认名称
+                account = new Account(UUID.randomUUID().toString(), nextDefaultName(), "",
+                        normalize(line), "SHA1", 6, 30);
             }
+
             if (account == null) { invalid++; continue; }
             if (findBySecret(account.secret) != null) { skipped++; continue; }
             accounts.add(account);
             added++;
         }
-        if (added > 0) { sortAccounts(); saveAccounts(); renderAccounts(); }
-        Toast.makeText(this, "导入完成：新增 " + added + "，重复 " + skipped + "，无效 " + invalid,
-                Toast.LENGTH_LONG).show();
+
+        if (added > 0) {
+            sortAccounts();
+            saveAccounts();
+            renderAccounts();
+            if (selectedId == null) selectInitial();
+        }
+        toast("导入完成：新增 " + added + " 个，跳过重复 " + skipped + " 个，无效 " + invalid + " 行");
+        return added;
     }
 
-    /**
-     * 解析「名称,密钥」或「名称<TAB>密钥」简写行。
-     * 从右端找第一个逗号或制表符作分隔，并要求密钥段完全由 Base32 字符组成，
-     * 这样名称里含逗号（如「我的,账户」）也能正确解析。
-     */
+    /** 「名称,密钥」简写。名称里可能含逗号，因此从右往左找分隔点并校验密钥段。 */
     private Account parseShorthand(String line) {
         for (int index = line.length() - 1; index > 0; index--) {
             char separator = line.charAt(index);
             if (separator != ',' && separator != '\t') continue;
             String name = line.substring(0, index).trim();
-            String secret = normalize(line.substring(index + 1));
-            if (name.isEmpty() || secret.length() < 16) continue;
-            if (!isPureBase32(line.substring(index + 1))) continue;
-            if (!isValidSecret(secret)) continue;
+            String tail = line.substring(index + 1);
+            if (name.isEmpty()) continue;
+            if (!isPureBase32(tail)) continue;
+            String secret = normalize(tail);
+            if (secret.length() < 16) continue;
+            try {
+                if (decodeBase32(secret).length < 10) continue;
+            } catch (RuntimeException exception) {
+                continue;
+            }
             return new Account(UUID.randomUUID().toString(), name, "", secret, "SHA1", 6, 30);
         }
         return null;
     }
 
-    /** 密钥段除 Base32 字符外只允许空格与连字符，防止把名称误当成密钥。 */
     private boolean isPureBase32(String value) {
         String trimmed = value.trim();
         if (trimmed.isEmpty()) return false;
@@ -564,77 +761,73 @@ public class MainActivity extends android.app.Activity {
     }
 
     private void showExportDialog() {
-        if (accounts.isEmpty()) { Toast.makeText(this, "没有可导出的账户", Toast.LENGTH_SHORT).show(); return; }
-        new AlertDialog.Builder(this)
-            .setTitle("导出 " + accounts.size() + " 个账户")
-            .setMessage("导出内容包含明文密钥，请妥善保管，不要分享给他人。")
-            .setItems(new String[]{"复制到剪贴板", "保存为文件"}, (dialog, which) -> {
-                String payload = buildExportPayload();
-                if (which == 0) copyText("2FA backup", payload, "已复制 " + accounts.size() + " 个账户");
-                else saveExportFile(payload);
-            })
-            .setNegativeButton("取消", null)
-            .show();
+        if (accounts.isEmpty()) { toast("还没有账户"); return; }
+        String[] items = {"导出为 otpauth 链接文本", "复制到剪贴板"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.action_export)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) {
+                        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                        intent.addCategory(Intent.CATEGORY_OPENABLE);
+                        intent.setType("text/plain");
+                        intent.putExtra(Intent.EXTRA_TITLE, "2fa-backup.txt");
+                        startActivityForResult(intent, REQUEST_EXPORT_FILE);
+                    } else {
+                        copyText("2FA 备份", buildExportPayload(), "已复制到剪贴板");
+                    }
+                })
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
     }
 
     private String buildExportPayload() {
         StringBuilder builder = new StringBuilder();
+        builder.append("# 2FA 验证器备份\n");
+        builder.append("# 每行一个账户，可直接重新导入\n\n");
         for (Account account : accounts) builder.append(account.toOtpAuth()).append('\n');
-        return builder.toString().trim();
+        return builder.toString();
     }
 
-    private void saveExportFile(String payload) {
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/plain");
-        intent.putExtra(Intent.EXTRA_TITLE, "2fa-backup.txt");
-        intent.putExtra("payload", payload);
-        try {
-            startActivityForResult(intent, REQUEST_EXPORT_FILE);
-        } catch (RuntimeException exception) {
-            Toast.makeText(this, "无法打开文件保存器", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void writeExport(Uri target, String payload) {
-        try (OutputStream stream = getContentResolver().openOutputStream(target, "wt")) {
-            if (stream == null) throw new IllegalStateException("empty stream");
-            stream.write(payload.getBytes(StandardCharsets.UTF_8));
-            stream.flush();
-            Toast.makeText(this, "备份已保存", Toast.LENGTH_SHORT).show();
-        } catch (Exception exception) {
-            Toast.makeText(this, "保存失败", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    // ---------------------------------------------------------------- 存储
+    // ---------------------------------------------------------------- 持久化
 
     private void loadAccounts() {
-        String raw = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_ACCOUNTS, "[]");
+        accounts.clear();
+        SharedPreferences preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        selectedId = preferences.getString(KEY_SELECTED, null);
+        String raw = preferences.getString(KEY_ACCOUNTS, "[]");
         try {
-            JSONArray list = new JSONArray(raw);
-            for (int index = 0; index < list.length(); index++) {
-                JSONObject item = list.getJSONObject(index);
-                Account account = new Account(
+            JSONArray array = new JSONArray(raw);
+            for (int index = 0; index < array.length(); index++) {
+                JSONObject item = array.getJSONObject(index);
+                accounts.add(new Account(
                         item.optString("id", UUID.randomUUID().toString()),
-                        item.optString("name", "未命名账户"),
+                        item.optString("name", "未命名"),
                         item.optString("issuer", ""),
                         item.optString("secret", ""),
                         normalizeAlgorithm(item.optString("algorithm", "SHA1")),
-                        parseChoice(item.optString("digits", "6"), 6, new int[]{6, 8}),
-                        parseChoice(item.optString("period", "30"), 30, null));
-                account.pinned = item.optBoolean("pinned", false);
-                if (!account.secret.isEmpty()) accounts.add(account);
+                        clampDigits(parseIntSafe(item.optString("digits", "6"), 6)),
+                        clampPeriod(parseIntSafe(item.optString("period", "30"), 30))));
+                accounts.get(accounts.size() - 1).pinned = item.optBoolean("pinned", false);
             }
-            sortAccounts();
         } catch (Exception ignored) { }
+        sortAccounts();
+    }
+
+    private int clampDigits(int value) {
+        if (value < MIN_DIGITS || value > MAX_DIGITS) return 6;
+        return value;
+    }
+
+    private int clampPeriod(int value) {
+        if (value < MIN_PERIOD || value > MAX_PERIOD) return 30;
+        return value;
     }
 
     private void saveAccounts() {
-        JSONArray list = new JSONArray();
-        for (Account account : accounts) {
-            JSONObject item = new JSONObject();
-            try {
+        JSONArray array = new JSONArray();
+        try {
+            for (Account account : accounts) {
+                JSONObject item = new JSONObject();
                 item.put("id", account.id);
                 item.put("name", account.name);
                 item.put("issuer", account.issuer);
@@ -643,19 +836,14 @@ public class MainActivity extends android.app.Activity {
                 item.put("digits", account.digits);
                 item.put("period", account.period);
                 item.put("pinned", account.pinned);
-                list.put(item);
-            } catch (Exception ignored) { }
-        }
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_ACCOUNTS, list.toString()).apply();
-    }
-
-    private void sortAccounts() {
-        Collections.sort(accounts, new Comparator<Account>() {
-            @Override public int compare(Account left, Account right) {
-                if (left.pinned != right.pinned) return left.pinned ? -1 : 1;
-                return left.display().compareToIgnoreCase(right.display());
+                array.put(item);
             }
-        });
+        } catch (Exception ignored) { }
+        SharedPreferences preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        preferences.edit()
+                .putString(KEY_ACCOUNTS, array.toString())
+                .putString(KEY_SELECTED, selectedId)
+                .apply();
     }
 
     private Account findBySecret(String secret) {
@@ -665,20 +853,38 @@ public class MainActivity extends android.app.Activity {
 
     // ---------------------------------------------------------------- TOTP 核心
 
+    /**
+     * RFC 6238 TOTP。位数不做限制，按 10^digits 取模，1~18 位都能正确输出。
+     * 超过 18 位会溢出 long，因此上游已做边界限制。
+     */
     private String totp(String algorithm, int digits, int period, String secret, long seconds)
             throws GeneralSecurityException {
         byte[] key = decodeBase32(secret);
         if (key.length == 0) throw new GeneralSecurityException("Empty key");
+        if (digits < 1) throw new GeneralSecurityException("Invalid digits");
+        if (period < 1) throw new GeneralSecurityException("Invalid period");
+
         ByteBuffer counter = ByteBuffer.allocate(8).putLong(seconds / period);
-        Mac mac = Mac.getInstance("Hmac" + algorithm);
-        mac.init(new SecretKeySpec(key, "Hmac" + algorithm));
+        String macName = "Hmac" + algorithm;
+        Mac mac = Mac.getInstance(macName);
+        mac.init(new SecretKeySpec(key, macName));
         byte[] hash = mac.doFinal(counter.array());
+
         int offset = hash[hash.length - 1] & 0x0f;
         if (offset + 4 > hash.length) throw new GeneralSecurityException("Invalid HMAC result");
         int binary = ((hash[offset] & 0x7f) << 24) | ((hash[offset + 1] & 0xff) << 16)
                 | ((hash[offset + 2] & 0xff) << 8) | (hash[offset + 3] & 0xff);
-        long modulus = digits == 8 ? 100_000_000L : 1_000_000L;
-        return String.format(Locale.US, "%0" + digits + "d", binary % modulus);
+
+        // 通用取模：10^digits，不再写死 6 位或 8 位
+        long modulus = powerOfTen(digits);
+        long value = binary % modulus;
+        return String.format(Locale.US, "%0" + digits + "d", value);
+    }
+
+    private long powerOfTen(int digits) {
+        long result = 1;
+        for (int i = 0; i < digits; i++) result *= 10L;
+        return result;
     }
 
     private byte[] decodeBase32(String value) {
@@ -702,32 +908,138 @@ public class MainActivity extends android.app.Activity {
         return value.toUpperCase(Locale.US).replaceAll("[^A-Z2-7]", "");
     }
 
-    // ---------------------------------------------------------------- 通用工具
+    // ---------------------------------------------------------------- 工具
 
-    private TextView text(String value, int size, int tint, int face) { TextView view = new TextView(this); view.setText(value); view.setTextSize(size); view.setTextColor(tint); view.setTypeface(null, face); return view; }
-    private TextView text(String value, int size, int tint, Typeface face) { TextView view = new TextView(this); view.setText(value); view.setTextSize(size); view.setTextColor(tint); view.setTypeface(face); return view; }
-    private int dp(int value) { return (int) (value * getResources().getDisplayMetrics().density + 0.5f); }
-    private int color(String name) { return getResources().getColor(getResources().getIdentifier(name, "color", getPackageName())); }
-    private GradientDrawable roundRect(int fill, int stroke) { GradientDrawable drawable = new GradientDrawable(); drawable.setColor(fill); drawable.setCornerRadius(dp(6)); drawable.setStroke(dp(1), stroke); return drawable; }
-    @SuppressWarnings("unchecked") private <T extends View> T findByTag(View root, Object tag, Class<T> type) { if (tag.equals(root.getTag()) && type.isInstance(root)) return (T) root; if (root instanceof ViewGroup) { ViewGroup group = (ViewGroup) root; for (int index = 0; index < group.getChildCount(); index++) { T found = findByTag(group.getChildAt(index), tag, type); if (found != null) return found; } } return null; }
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    private int color(String name) {
+        return getResources().getColor(getResources().getIdentifier(name, "color", getPackageName()));
+    }
+
+    /** 简化版 TextWatcher，只关心 afterTextChanged。 */
+    private abstract static class SimpleWatcher implements TextWatcher {
+        @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+        @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+    }
+
+    // ---------------------------------------------------------------- 列表适配器
+
+    private class AccountAdapter extends RecyclerView.Adapter<AccountAdapter.Holder> {
+
+        private final List<Account> items = new ArrayList<>();
+        private String highlightedId;
+
+        void submit(List<Account> list) {
+            items.clear();
+            items.addAll(list);
+            notifyDataSetChanged();
+        }
+
+        void setSelectedId(String id) {
+            highlightedId = id;
+            notifyDataSetChanged();
+        }
+
+        @NonNull @Override
+        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_account, parent, false);
+            return new Holder(view);
+        }
+
+        @Override public void onBindViewHolder(@NonNull Holder holder, int position) {
+            holder.bind(items.get(position));
+        }
+
+        @Override public int getItemCount() { return items.size(); }
+
+        class Holder extends RecyclerView.ViewHolder {
+            final TextView name, meta, code, pin;
+            final MaterialButton more, copy;
+            final LinearProgressIndicator progress;
+
+            Holder(@NonNull View itemView) {
+                super(itemView);
+                name = itemView.findViewById(R.id.rowName);
+                meta = itemView.findViewById(R.id.rowMeta);
+                code = itemView.findViewById(R.id.rowCode);
+                pin = itemView.findViewById(R.id.rowPin);
+                more = itemView.findViewById(R.id.rowMore);
+                copy = itemView.findViewById(R.id.rowCopy);
+                progress = itemView.findViewById(R.id.rowProgress);
+            }
+
+            void bind(Account account) {
+                name.setText(account.name);
+                if (account.issuer.isEmpty()) {
+                    meta.setText(account.meta());
+                } else {
+                    meta.setText(account.issuer + " · " + account.meta());
+                }
+                pin.setVisibility(account.pinned ? View.VISIBLE : View.GONE);
+
+                long now = System.currentTimeMillis() / 1000L;
+                int remaining = (int) (account.period - (now % account.period));
+                String value = computeCode(account, now);
+                if (value == null) {
+                    code.setText(maskFor(account.digits));
+                    code.setTextColor(color("app_muted"));
+                } else {
+                    code.setText(groupCode(value));
+                    code.setTextColor(remaining <= 5 ? color("app_warning") : color("app_ink"));
+                }
+
+                progress.setMax(account.period);
+                progress.setProgress(remaining);
+                progress.setIndicatorColor(remaining <= 5 ? color("app_warning") : color("app_primary"));
+
+                // 选中态：描边加粗，让当前账户一目了然
+                boolean isSelected = account.id.equals(highlightedId);
+                itemView.setSelected(isSelected);
+
+                itemView.setOnClickListener(v -> {
+                    select(account);
+                    notifyDataSetChanged();
+                });
+                copy.setOnClickListener(v -> copyCode(account));
+                more.setOnClickListener(v -> showAccountMenu(account));
+                itemView.setOnLongClickListener(v -> { showAccountMenu(account); return true; });
+                code.setOnClickListener(v -> copyCode(account));
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- 数据模型
 
     private static class Account {
         final String id;
         String name, issuer;
         final String secret;
-        final String algorithm;
-        final int digits;
-        final int period;
+        String algorithm;
+        int digits;
+        int period;
         boolean pinned;
 
-        Account(String id, String name, String issuer, String secret, String algorithm, int digits, int period) {
-            this.id = id; this.name = name; this.issuer = issuer; this.secret = secret;
-            this.algorithm = algorithm; this.digits = digits; this.period = period;
+        Account(String id, String name, String issuer, String secret,
+                String algorithm, int digits, int period) {
+            this.id = id;
+            this.name = name;
+            this.issuer = issuer == null ? "" : issuer;
+            this.secret = secret;
+            this.algorithm = algorithm;
+            this.digits = digits;
+            this.period = period;
         }
 
-        String display() { return issuer == null || issuer.isEmpty() ? name : issuer + " · " + name; }
+        String display() {
+            return issuer == null || issuer.isEmpty() ? name : issuer + " · " + name;
+        }
 
-        String meta() { return algorithm + " · " + digits + " 位 · " + period + " 秒"; }
+        String meta() {
+            return algorithm + " · " + digits + " 位 · " + period + " 秒";
+        }
 
         boolean matches(String lowerQuery) {
             return display().toLowerCase(Locale.US).contains(lowerQuery)
@@ -736,9 +1048,12 @@ public class MainActivity extends android.app.Activity {
 
         String toOtpAuth() {
             String prefix = (issuer == null || issuer.isEmpty()) ? "" : issuer + ":";
-            StringBuilder builder = new StringBuilder("otpauth://totp/").append(Uri.encode(prefix + name))
+            StringBuilder builder = new StringBuilder("otpauth://totp/")
+                    .append(Uri.encode(prefix + name))
                     .append("?secret=").append(secret);
-            if (issuer != null && !issuer.isEmpty()) builder.append("&issuer=").append(Uri.encode(issuer));
+            if (issuer != null && !issuer.isEmpty()) {
+                builder.append("&issuer=").append(Uri.encode(issuer));
+            }
             if (!"SHA1".equals(algorithm)) builder.append("&algorithm=").append(algorithm);
             if (digits != 6) builder.append("&digits=").append(digits);
             if (period != 30) builder.append("&period=").append(period);

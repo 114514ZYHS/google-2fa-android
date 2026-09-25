@@ -3,7 +3,7 @@
 # 运行：bash tools/algorithm-tests/run.sh
 set -e
 cd "$(dirname "$0")"
-for f in TotpTest UriTest ImportTest; do
+for f in TotpTest UriTest ImportTest AnyDigitTest; do
   javac -encoding UTF-8 "$f.java"
   echo "########## $f ##########"
   java "$f"
