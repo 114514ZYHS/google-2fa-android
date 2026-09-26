@@ -3,26 +3,31 @@
 """
 生成 2FA 验证器的启动器图标 PNG。
 
-设计（按用户指定的参照图）：
-  - 纯黑底
-  - 红色线条
-  - 所有线条都是 45 度斜线，交叉成 X 形
-  - 线条端点做方形收口，保留硬朗观感
+设计（按用户指定）：
+  - 一条从右上角到左下角的 45 度斜线，把图标分成两块
+  - 斜线左侧（左上三角）红色
+  - 斜线右侧（右下三角）黑色
+  - 正中间一个五角星，颜色与所在背景相反
+      · 落在红色半边的部分 -> 黑色
+      · 落在黑色半边的部分 -> 红色
+    星压在分界线上，天然一半一半，边界严丝合缝。
 
-实现：以 SS 倍超采样绘制后再降采样，保证斜线边缘平滑无锯齿。
+实现：以 SS 倍超采样绘制后再降采样，保证斜边与星形边缘平滑无锯齿。
+所有形状判断走 numpy 向量化，避免逐像素循环。
 """
 
 from PIL import Image, ImageDraw
+import math
 import os
+import numpy as np
 
 SS = 8  # 超采样倍数
 
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                        "..", "app", "src", "main", "res")
 
-# 配色：纯黑底 + 红色线条
-BG_COLOR = (0, 0, 0, 255)
-LINE_COLOR = (229, 30, 42, 255)
+RED = (229, 30, 42, 255)
+BLACK = (0, 0, 0, 255)
 
 DENSITIES = {
     "mdpi": 48,
@@ -48,58 +53,106 @@ def circle_mask(s):
     return mask
 
 
-def thick_diagonal(draw, p1, p2, width, color):
+def build_upper_left_mask(s):
     """
-    画一条粗斜线。
+    「左上三角」遮罩（L 模式）。
 
-    45 度斜线的方形端点在几何上不是「补个小方块」——
-    那样会在两角凸出多余台阶。正确做法是把线段沿自身方向
-    略微延长，让端面正好垂直于线身，从而得到干净的斜切收口。
+    分界线是右上角 -> 左下角的 45 度直线，方程等价于 x + y = s。
+    满足 x + y < s 的点位于分界线左上方，即红色区域。
+    用 numpy 一次性算完，避免逐像素循环。
     """
-    w = int(round(width))
-    (x1, y1), (x2, y2) = p1, p2
-    dx, dy = x2 - x1, y2 - y1
-    length = max(1e-6, (dx * dx + dy * dy) ** 0.5)
-    ux, uy = dx / length, dy / length
-    # 每端延长半个线宽，使端面垂直于线身
-    ext = w / 2.0
-    ex1, ey1 = x1 - ux * ext, y1 - uy * ext
-    ex2, ey2 = x2 + ux * ext, y2 + uy * ext
-    draw.line([(ex1, ey1), (ex2, ey2)], fill=color, width=w)
+    yy, xx = np.mgrid[0:s, 0:s]
+    inside = (xx + yy) < s
+    return Image.fromarray(np.where(inside, 255, 0).astype(np.uint8), mode="L")
 
 
-def draw_cross(draw, s, color):
-    """在 s x s 画布上画两条 45 度交叉斜线。"""
-    w = s * 0.135          # 线条粗细
-    m = s * 0.22           # 边距，避免贴边被裁
-    left, right = m, s - m
-    top, bottom = m, s - m
+def nmask_to_img(arr):
+    """numpy 布尔数组 -> L 模式 Image。"""
+    return Image.fromarray(np.where(arr, 255, 0).astype(np.uint8), mode="L")
 
-    # 主对角线：左上 -> 右下
-    thick_diagonal(draw, (left, top), (right, bottom), w, color)
-    # 副对角线：右上 -> 左下
-    thick_diagonal(draw, (right, top), (left, bottom), w, color)
+
+def star_mask_array(s, outer_r_ratio=0.30, cx_ratio=0.5, cy_ratio=0.5):
+    """返回五角星覆盖区域的布尔数组。"""
+    mask = Image.new("L", (s, s), 0)
+    cx, cy = s * cx_ratio, s * cy_ratio
+    outer_r = s * outer_r_ratio
+    points = []
+    for i in range(10):
+        radius = outer_r if i % 2 == 0 else outer_r * 0.382  # 内/外半径比
+        angle = -math.pi / 2 + i * math.pi / 5
+        points.append((cx + radius * math.cos(angle),
+                       cy + radius * math.sin(angle)))
+    ImageDraw.Draw(mask).polygon(points, fill=255)
+    return np.array(mask) > 127
 
 
 def render_icon(size, round_icon=False):
     s = size * SS
-    canvas = Image.new("RGBA", (s, s), (0, 0, 0, 0))
 
-    # ---- 背景：纯黑 ----
-    mask = circle_mask(s) if round_icon else rounded_square_mask(s, 0.20)
-    canvas.paste(Image.new("RGBA", (s, s), BG_COLOR), (0, 0), mask)
+    # ---- 分界掩码与形状掩码 ----
+    upper_left = np.array(build_upper_left_mask(s)) > 127          # True = 红区
+    if round_icon:
+        shape = np.array(circle_mask(s)) > 127
+    else:
+        shape = np.array(rounded_square_mask(s, 0.20)) > 127
 
-    # ---- 红色斜线 ----
-    line = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    draw_cross(ImageDraw.Draw(line), s, LINE_COLOR)
+    # ---- 底色：红区红、黑区黑 ----
+    rgb = np.zeros((s, s, 3), dtype=np.uint8)
+    rgb[upper_left] = RED[:3]
+    rgb[~upper_left] = BLACK[:3]
 
-    # 圆形图标时，把溢出圆外的线条裁掉
-    line_alpha = line.split()[3]
-    clipped = Image.composite(line_alpha, Image.new("L", (s, s), 0), mask)
-    line.putalpha(clipped)
+    # ---- 五角星：与背景相反 ----
+    star = star_mask_array(s, 0.30)
+    # 星落在红区的部分填黑
+    rgb[star & upper_left] = BLACK[:3]
+    # 星落在黑区的部分填红
+    rgb[star & (~upper_left)] = RED[:3]
 
-    canvas = Image.alpha_composite(canvas, line)
-    return canvas.resize((size, size), Image.LANCZOS)
+    # ---- 裁进图标形状 ----
+    alpha = np.where(shape, 255, 0).astype(np.uint8)
+    out = np.dstack([rgb, alpha])
+
+    return Image.fromarray(out, mode="RGBA").resize((size, size), Image.LANCZOS)
+
+
+def render_background(size):
+    """自适应图标背景层：红黑斜分，铺满整张画布。"""
+    s = size * SS
+    upper_left = np.array(build_upper_left_mask(s)) > 127
+    rgb = np.zeros((s, s, 3), dtype=np.uint8)
+    rgb[upper_left] = RED[:3]
+    rgb[~upper_left] = BLACK[:3]
+    alpha = np.full((s, s), 255, dtype=np.uint8)
+    out = np.dstack([rgb, alpha])
+    return Image.fromarray(out, mode="RGBA").resize((size, size), Image.LANCZOS)
+
+
+def render_foreground(size):
+    """自适应图标前景层：透明底 + 五角星（颜色与背景相反），缩到安全区。"""
+    s = size * SS
+    upper_left = np.array(build_upper_left_mask(s)) > 127
+    star = star_mask_array(s, 0.30)
+
+    rgb = np.zeros((s, s, 3), dtype=np.uint8)
+    alpha = np.zeros((s, s), dtype=np.uint8)
+
+    # 星在红区 -> 黑；星在黑区 -> 红
+    red_zone_star = star & upper_left
+    black_zone_star = star & (~upper_left)
+    rgb[red_zone_star] = BLACK[:3]
+    rgb[black_zone_star] = RED[:3]
+    alpha[red_zone_star | black_zone_star] = 255
+
+    out = np.dstack([rgb, alpha])
+    img = Image.fromarray(out, mode="RGBA")
+
+    # 缩进安全区（中心 66/108）
+    scale = 66.0 / 108.0
+    small = img.resize((int(s * scale), int(s * scale)), Image.LANCZOS)
+    safe = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    off = int(round((s - s * scale) / 2))
+    safe.paste(small, (off, off), small)
+    return safe.resize((size, size), Image.LANCZOS)
 
 
 def main():
@@ -119,26 +172,14 @@ def main():
               f"round={os.path.getsize(p2)}B")
 
     # ---- 自适应图标图层 ----
-    # 背景层：纯黑铺满（系统会自行裁成圆/方/水滴等形状）
     os.makedirs(os.path.join(OUT_DIR, "drawable"), exist_ok=True)
     bg_out = os.path.join(OUT_DIR, "drawable", "ic_launcher_background.png")
-    Image.new("RGBA", (432, 432), BG_COLOR).save(bg_out, "PNG", optimize=True)
-
-    # 前景层：透明底 + 红色斜线，整体缩到安全区（中心 66/108）
-    S = 432 * SS
-    fg = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    draw_cross(ImageDraw.Draw(fg), S, LINE_COLOR)
-
-    scale = 66.0 / 108.0
-    small = fg.resize((int(S * scale), int(S * scale)), Image.LANCZOS)
-    safe = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    off = int(round((S - S * scale) / 2))
-    safe.paste(small, (off, off), small)
+    render_background(432).save(bg_out, "PNG", optimize=True)
 
     fg_out = os.path.join(OUT_DIR, "drawable", "ic_launcher_foreground.png")
-    safe.resize((432, 432), Image.LANCZOS).save(fg_out, "PNG", optimize=True)
+    render_foreground(432).save(fg_out, "PNG", optimize=True)
 
-    print(f"\n自适应图标图层已更新：{bg_out}, {fg_out}")
+    print(f"\n自适应图标图层已更新：\n  {bg_out}\n  {fg_out}")
     print("图标生成完成。")
 
 
